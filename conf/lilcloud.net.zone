@@ -1,0 +1,7 @@
+$ORIGIN lilcloud.net.
+$TTL 3600
+@ IN SOA ns.lilcloud.net. hostmaster.lilcloud.net. (1 3600 600 604800 3600)
+@ IN NS ns.lilcloud.net.
+ns IN A 203.0.113.5
+www IN A 203.0.113.10
+api IN A 203.0.113.11

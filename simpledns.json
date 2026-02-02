@@ -1,0 +1,6 @@
+{
+  "confdir": "conf",
+  "zones_file": "zones.json",
+  "forwarders": ["1.1.1.1", "8.8.8.8"],
+  "forward_timeout_seconds": 2
+}

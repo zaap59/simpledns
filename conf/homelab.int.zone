@@ -1,0 +1,7 @@
+$ORIGIN homelab.int.
+$TTL 3600
+@ IN SOA ns.homelab.int. hostmaster.homelab.int. (1 3600 600 604800 3600)
+@ IN NS ns.homelab.int.
+ns IN A 192.168.1.2
+router IN A 192.168.1.1
+server IN A 192.168.1.10
