@@ -69,7 +69,7 @@ jobs:
           exit-code: '1'
           format: 'table'
           ignore-unfixed: true
-          image-ref: ${{ env.DOCKER_IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          image-ref: ghcr.io/${{ env.DOCKER_IMAGE_NAME }}:${{ steps.meta.outputs.version }}
           severity: 'CRITICAL,HIGH'
           vuln-type: 'os,library'
 
