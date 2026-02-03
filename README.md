@@ -76,5 +76,15 @@ Fichiers d'exemple inclus dans le dépôt:
 - `conf/homelab.int.yaml`
 - `conf/lilcloud.net.yaml`
 
-Si vous voulez, j'exécute `go build` ici pour vérifier la compilation ou je lance le serveur sur un port non privilégié pour des tests rapides.
+## Versioning
+
+Ce projet utilise [Release Please](https://github.com/googleapis/release-please) pour gérer automatiquement les versions et les releases GitHub.
+
+Les versions suivent [Semantic Versioning](https://semver.org/). Les commits doivent suivre la convention [Conventional Commits](https://www.conventionalcommits.org/) pour que les versions soient calculées correctement.
+
+Voir [CONTRIBUTING.md](CONTRIBUTING.md) pour les détails sur le format des commits.
+
+## Contribution
+
+Pour contribuer au projet, veuillez consulter [CONTRIBUTING.md](CONTRIBUTING.md).
 
