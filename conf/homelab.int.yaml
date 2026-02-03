@@ -12,15 +12,15 @@ soa:
   expire: 604800
 
 dns_records:
-  - name: ns
+  - name: nas
     type: A
-    value: 192.168.1.2
+    value: 192.168.23.220
     ttl: 3600
   - name: router
     type: A
     value: 192.168.1.1
     ttl: 3600
-  - name: server
-    type: A
-    value: 192.168.1.10
+  - name: dl
+    type: CNAME
+    value: nas.homelab.int.
     ttl: 3600

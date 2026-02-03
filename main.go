@@ -58,11 +58,8 @@ type YAMLZoneConfig struct {
 
 // debug can be enabled via the CLI flag `-debug`
 
-// Note: configuration via simpledns.json removed; use flags and zone files in `conf/` or `zones.json`.
-
 type AppConfig struct {
 	ConfDir           string   `json:"confdir,omitempty"`
-	ZonesFile         string   `json:"zones_file,omitempty"`
 	Forwarders        []string `json:"forwarders,omitempty"`
 	ForwardTimeoutSec int      `json:"forward_timeout_seconds,omitempty"`
 	Addr              string   `json:"addr,omitempty"`
@@ -189,35 +186,6 @@ func loadZonesFromYAMLFile(path string) error {
 	return nil
 }
 
-func loadZonesFromFile(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	var raw map[string][]string
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return fmt.Errorf("invalid zones file: %w", err)
-	}
-	// record zone names from JSON keys
-	for k := range raw {
-		loadedZoneNames = append(loadedZoneNames, dns.Fqdn(k))
-	}
-	if zones == nil {
-		zones = make(map[string][]dns.RR)
-	}
-	for _, list := range raw {
-		for _, s := range list {
-			rr, err := dns.NewRR(s)
-			if err != nil {
-				return fmt.Errorf("invalid RR %q: %w", s, err)
-			}
-			name := dns.Fqdn(rr.Header().Name)
-			zones[name] = append(zones[name], rr)
-		}
-	}
-	return nil
-}
-
 func loadZonesFromDir(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -239,13 +207,13 @@ func loadZonesFromDir(dir string) error {
 				return fmt.Errorf("parse YAML %s: %w", path, err)
 			}
 		}
-		// Ignore other file types (no BIND format support)
+		// Ignore other file types
 	}
 	return nil
 }
 
-func initZones(configPath string, confDir string) {
-	// Try conf directory first
+func initZones(confDir string) {
+	// Load zones from conf directory
 	if confDir != "" {
 		if info, err := os.Stat(confDir); err == nil && info.IsDir() {
 			if err := loadZonesFromDir(confDir); err == nil {
@@ -254,16 +222,6 @@ func initZones(configPath string, confDir string) {
 			} else {
 				log.Printf("Failed to load zones from dir %s: %v", confDir, err)
 			}
-		}
-	}
-
-	// Then try JSON config file
-	if configPath != "" {
-		if err := loadZonesFromFile(configPath); err == nil {
-			log.Printf("Loaded zones from %s", configPath)
-			return
-		} else {
-			log.Printf("Failed to load zones from %s: %v", configPath, err)
 		}
 	}
 
@@ -359,15 +317,12 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 func main() {
 	log.Println("Starting simple DNS server...")
 	// Use flag types that record whether they were set so flags can override config file
-	var cfgFlag stringFlag
 	var confdirFlag stringFlag
 	var forwardersFlag stringFlag
 
 	// register flags with defaults
-	cfgFlag.value = "zones.json"
-	flag.Var(&cfgFlag, "config", "path to zones JSON file (optional)")
 	confdirFlag.value = "conf"
-	flag.Var(&confdirFlag, "confdir", "directory containing zone files (BIND-style)")
+	flag.Var(&confdirFlag, "confdir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
 	flag.BoolVar(&debug, "debug", false, "enable debug logs (show received queries)")
 	flag.Parse()
@@ -376,9 +331,6 @@ func main() {
 	if cfgApp, err := loadAppConfig("simpledns.json"); err == nil {
 		if !confdirFlag.set && cfgApp.ConfDir != "" {
 			confdirFlag.value = cfgApp.ConfDir
-		}
-		if !cfgFlag.set && cfgApp.ZonesFile != "" {
-			cfgFlag.value = cfgApp.ZonesFile
 		}
 		if !forwardersFlag.set && cfgApp.Forwarders != nil {
 			parsed := make([]string, 0, len(cfgApp.Forwarders))
@@ -409,7 +361,7 @@ func main() {
 		forwarders = []string{}
 	}
 
-	initZones(cfgFlag.value, confdirFlag.value)
+	initZones(confdirFlag.value)
 	// Always log the effective configuration and loaded zone names at startup
 	uniq := make(map[string]struct{}, len(loadedZoneNames))
 	for _, z := range loadedZoneNames {
@@ -423,8 +375,8 @@ func main() {
 		zoneNames = append(zoneNames, z)
 	}
 	sort.Strings(zoneNames)
-	log.Printf("Config initialized: confdir=%s zones_file=%s forwarders=%v forward_timeout=%s loaded_zones=%d",
-		confdirFlag.value, cfgFlag.value, forwarders, forwardTimeout, len(zoneNames))
+	log.Printf("Config initialized: confdir=%s forwarders=%v forward_timeout=%s loaded_zones=%d",
+		confdirFlag.value, forwarders, forwardTimeout, len(zoneNames))
 	if len(zoneNames) > 0 {
 		log.Printf("Loaded zones: %v", zoneNames)
 	}
