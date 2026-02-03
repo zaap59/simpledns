@@ -240,6 +240,10 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
 	m.Authoritative = true
+	// Indicate recursion is available if we have forwarders configured
+	if len(forwarders) > 0 {
+		m.RecursionAvailable = true
+	}
 
 	if len(r.Question) == 0 {
 		if debug {
