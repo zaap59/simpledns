@@ -1,0 +1,26 @@
+zone_config:
+  name: lilcloud.net
+  origin: lilcloud.net.
+  ttl: 3600
+
+soa:
+  ns: ns.lilcloud.net.
+  admin: hostmaster@lilcloud.net
+  serial: 1
+  refresh: 3600
+  retry: 600
+  expire: 604800
+
+dns_records:
+  - name: ns
+    type: A
+    value: 203.0.113.5
+    ttl: 3600
+  - name: www
+    type: A
+    value: 203.0.113.10
+    ttl: 3600
+  - name: api
+    type: A
+    value: 203.0.113.11
+    ttl: 3600
