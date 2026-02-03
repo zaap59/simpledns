@@ -3,8 +3,8 @@ module simpledns
 go 1.20
 
 require (
-	github.com/BurntSushi/toml v0.4.1
 	github.com/miekg/dns v1.1.52
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

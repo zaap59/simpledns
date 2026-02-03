@@ -1,0 +1,26 @@
+zone_config:
+  name: homelab.int
+  origin: homelab.int.
+  ttl: 3600
+
+soa:
+  ns: ns.homelab.int.
+  admin: hostmaster@homelab.int
+  serial: 1
+  refresh: 3600
+  retry: 600
+  expire: 604800
+
+dns_records:
+  - name: nas
+    type: A
+    value: 192.168.23.220
+    ttl: 3600
+  - name: router
+    type: A
+    value: 192.168.1.1
+    ttl: 3600
+  - name: dl
+    type: CNAME
+    value: nas.homelab.int.
+    ttl: 3600
