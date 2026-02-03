@@ -48,6 +48,24 @@ Champs supportés:
 - `forwarders`: liste d'upstreams DNS (sans port ou `host:port`).
 - `forward_timeout_seconds`: timeout en secondes pour les forwards.
 
+## Validation et tests
+
+Le projet utilise des workflows GitHub Actions pour valider les changements :
+
+- **Lint and Test** (`.github/workflows/lint-and-test.yml`)
+  - Linting du code avec golangci-lint
+  - Exécution des tests
+  - Vérification que go.mod est à jour
+  - Upload du coverage vers Codecov
+
+- **Build Validation** (`.github/workflows/build-validation.yml`)
+  - Tests de compilation multi-versions (Go 1.24, Go 1.25)
+  - Build cross-platform (Linux, macOS, Windows × amd64, arm64)
+  - Vérification de l'intégrité du build
+  - Génération d'artefacts compilés
+
+Voir [BUILD_VALIDATION.md](BUILD_VALIDATION.md) pour plus de détails.
+
 Notes:
 - Les flags CLI ont priorité sur les valeurs définies dans `simpledns.json`.
 - Si un nom demandé n'existe pas localement, le serveur forwardera la requête vers les upstreams listés (si configurés).
