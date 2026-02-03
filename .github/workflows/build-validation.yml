@@ -1,0 +1,81 @@
+
+---
+name: Build Validation
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Validation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ['1.24', '1.25']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+      
+      - name: Verify go.mod
+        run: go mod verify
+      
+      - name: Download dependencies
+        run: go mod download
+      
+      - name: Format check
+        run: go fmt ./...
+      
+      - name: Build binary
+        run: go build -o simpledns main.go
+      
+      - name: Verify binary
+        run: |
+          if [ ! -f simpledns ]; then
+            echo "❌ Binary not found"
+            exit 1
+          fi
+          echo "✅ Binary created successfully"
+          file simpledns
+      
+      - name: Run binary help
+        run: ./simpledns --help || true
+  
+  build-matrix:
+    name: Cross-platform Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: ['linux', 'darwin', 'windows']
+        goarch: ['amd64', 'arm64']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+      
+      - name: Build for ${{ matrix.goos }}/${{ matrix.goarch }}
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o simpledns-${{ matrix.goos }}-${{ matrix.goarch }} main.go
+          ls -lh simpledns-*
+        shell: bash
+      
+      # - name: Upload artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: simpledns-${{ matrix.goos }}-${{ matrix.goarch }}
+      #     path: simpledns-${{ matrix.goos }}-${{ matrix.goarch }}
+      #     retention-days: 7
