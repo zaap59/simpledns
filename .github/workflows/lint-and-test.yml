@@ -1,0 +1,93 @@
+name: Lint and Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+      
+      - name: Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+      
+      - name: Run lint
+        run: task lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+      
+      - name: Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+      
+      - name: Run tests
+        run: task test-cover
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+      
+      - name: Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+      
+      - name: Build
+        run: task build
+
+  go-mod-tidy:
+    name: Check go.mod is tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+      
+      - name: Install Task
+        uses: arduino/setup-task@v1
+        with:
+          version: 3.x
+      
+      - name: Check go mod tidy
+        run: task check

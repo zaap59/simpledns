@@ -48,6 +48,80 @@ Champs supportés:
 - `forwarders`: liste d'upstreams DNS (sans port ou `host:port`).
 - `forward_timeout_seconds`: timeout en secondes pour les forwards.
 
+## Développement
+
+### Build et test avec Taskfile
+
+Ce projet utilise [Taskfile](https://taskfile.dev/) pour gérer les tâches de développement.
+
+**Installation de Task :**
+```bash
+# macOS
+brew install go-task
+
+# Ou télécharger depuis https://taskfile.dev/installation/
+```
+
+**Commandes disponibles :**
+```bash
+# Compiler
+task build
+
+# Linter le code
+task lint
+
+# Formater le code
+task fmt
+
+# Lancer les tests
+task test
+
+# Lancer les tests avec coverage
+task test-cover
+
+# Tout faire (format, lint, test, build)
+task all
+
+# Lancer le serveur (nécessite sudo)
+task run
+
+# Lancer le serveur en mode debug
+task run-debug
+
+# Voir toutes les commandes disponibles
+task --list
+```
+
+### Commandes Go directes (alternative)
+
+Si vous préférez ne pas utiliser Task :
+
+```bash
+# Compiler
+go build -o simpledns main.go
+
+# Tester
+go test -v ./...
+
+# Tester avec coverage
+go test -v -race -coverprofile=coverage.out ./...
+
+# Télécharger les dépendances
+go mod download
+
+# Nettoyer les dépendances
+go mod tidy
+```
+
+### Validation automatique
+
+Ce projet utilise GitHub Actions pour :
+- **Linter** le code avec `golangci-lint`
+- **Compiler** le code
+- **Lancer les tests**
+- **Vérifier** que `go.mod` est à jour
+- **Générer les releases** avec Release Please (Semantic Versioning)
+
 Notes:
 - Les flags CLI ont priorité sur les valeurs définies dans `simpledns.json`.
 - Si un nom demandé n'existe pas localement, le serveur forwardera la requête vers les upstreams listés (si configurés).

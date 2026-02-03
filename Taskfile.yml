@@ -1,0 +1,83 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Compiler le serveur DNS
+    cmds:
+      - go build -v -o simpledns main.go
+    sources:
+      - main.go
+      - "**/*.go"
+    generates:
+      - simpledns
+
+  lint:
+    desc: Linter le code avec golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  fmt:
+    desc: Formater le code
+    cmds:
+      - go fmt ./...
+
+  test:
+    desc: Lancer les tests
+    cmds:
+      - go test -v -race ./...
+
+  test-cover:
+    desc: Lancer les tests avec coverage
+    cmds:
+      - go test -v -race -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - 'echo "✅ Coverage report generated: coverage.html"'
+
+  deps:
+    desc: Télécharger les dépendances
+    cmds:
+      - go mod download
+
+  tidy:
+    desc: Nettoyer les dépendances (go mod tidy)
+    cmds:
+      - go mod tidy
+
+  clean:
+    desc: Supprimer les fichiers binaires et temporaires
+    cmds:
+      - go clean
+      - rm -f simpledns
+      - rm -f coverage.out coverage.html
+
+  run:
+    desc: Compiler et lancer le serveur (nécessite sudo)
+    cmds:
+      - task: build
+      - sudo ./simpledns
+
+  run-debug:
+    desc: Compiler et lancer le serveur en mode debug
+    cmds:
+      - task: build
+      - sudo ./simpledns -debug
+
+  all:
+    desc: Formater, linter, tester et compiler
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+      - task: build
+      - 'echo "✅ Format, lint, test et build réussis!"'
+
+  check:
+    desc: Vérifier que go.mod est à jour
+    cmds:
+      - go mod tidy
+      - git diff --exit-code go.mod go.sum
+
+  help:
+    desc: Afficher l'aide
+    cmds:
+      - task --list
