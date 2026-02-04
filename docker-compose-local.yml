@@ -1,0 +1,14 @@
+---
+services:
+  simpledns:
+    build: .
+    container_name: simpledns
+    command: 
+      - -forwarders=1.1.1.1,1.0.0.1 
+      - -debug 
+      - -confdir=/etc/simpledns/conf
+    ports:
+      - "53:53"
+      - "53:53/udp"
+    volumes:
+      - ./conf/homelab.int.yaml:/etc/simpledns/conf/homelab.int.yaml
