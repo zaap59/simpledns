@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -59,7 +58,7 @@ type YAMLZoneConfig struct {
 // debug can be enabled via the CLI flag `-debug`
 
 type AppConfig struct {
-	ConfDir           string   `json:"confdir,omitempty"`
+	ZonesDir          string   `yaml:"zones_dir" json:"zones_dir,omitempty"`
 	Forwarders        []string `json:"forwarders,omitempty"`
 	ForwardTimeoutSec int      `json:"forward_timeout_seconds,omitempty"`
 	Addr              string   `json:"addr,omitempty"`
@@ -71,7 +70,7 @@ func loadAppConfig(path string) (*AppConfig, error) {
 		return nil, err
 	}
 	var cfg AppConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
@@ -321,20 +320,23 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 func main() {
 	log.Println("Starting simple DNS server...")
 	// Use flag types that record whether they were set so flags can override config file
-	var confdirFlag stringFlag
+	var zonesDirFlag stringFlag
 	var forwardersFlag stringFlag
+	var configFileFlag stringFlag
 
 	// register flags with defaults
-	confdirFlag.value = "conf"
-	flag.Var(&confdirFlag, "confdir", "directory containing zone files (YAML format)")
+	configFileFlag.value = "config.yaml"
+	zonesDirFlag.value = "conf"
+	flag.Var(&configFileFlag, "config-file", "path to the configuration file (YAML format)")
+	flag.Var(&zonesDirFlag, "zones-dir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
 	flag.BoolVar(&debug, "debug", false, "enable debug logs (show received queries)")
 	flag.Parse()
 
-	// Load optional app config file `simpledns.json` if present
-	if cfgApp, err := loadAppConfig("simpledns.json"); err == nil {
-		if !confdirFlag.set && cfgApp.ConfDir != "" {
-			confdirFlag.value = cfgApp.ConfDir
+	// Load optional app config file if present
+	if cfgApp, err := loadAppConfig(configFileFlag.value); err == nil {
+		if !zonesDirFlag.set && cfgApp.ZonesDir != "" {
+			zonesDirFlag.value = cfgApp.ZonesDir
 		}
 		if !forwardersFlag.set && cfgApp.Forwarders != nil {
 			parsed := make([]string, 0, len(cfgApp.Forwarders))
@@ -349,7 +351,6 @@ func main() {
 			}
 			forwarders = parsed
 		}
-		// debug removed from configuration -- keep default (false)
 		if cfgApp.ForwardTimeoutSec > 0 {
 			forwardTimeout = time.Duration(cfgApp.ForwardTimeoutSec) * time.Second
 		}
@@ -365,7 +366,7 @@ func main() {
 		forwarders = []string{}
 	}
 
-	initZones(confdirFlag.value)
+	initZones(zonesDirFlag.value)
 	// Always log the effective configuration and loaded zone names at startup
 	uniq := make(map[string]struct{}, len(loadedZoneNames))
 	for _, z := range loadedZoneNames {
@@ -379,8 +380,8 @@ func main() {
 		zoneNames = append(zoneNames, z)
 	}
 	sort.Strings(zoneNames)
-	log.Printf("Config initialized: confdir=%s forwarders=%v forward_timeout=%s loaded_zones=%d",
-		confdirFlag.value, forwarders, forwardTimeout, len(zoneNames))
+	log.Printf("Config initialized: zones_dir=%s forwarders=%v forward_timeout=%s loaded_zones=%d",
+		zonesDirFlag.value, forwarders, forwardTimeout, len(zoneNames))
 	if len(zoneNames) > 0 {
 		log.Printf("Loaded zones: %v", zoneNames)
 	}
