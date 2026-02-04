@@ -3,11 +3,6 @@
 name: Build Validation
 
 on:
-  push:
-    branches:
-      - main
-      - 'feat/**'
-      - 'fix/**'
   pull_request:
     branches:
       - main
