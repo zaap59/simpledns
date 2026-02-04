@@ -1,4 +1,4 @@
-zones_dir: conf
+zones_dir: zones
 forwarders:
   - 1.1.1.1
   - 1.0.0.1

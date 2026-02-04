@@ -15,7 +15,7 @@ COPY --from=build /app/simpledns /simpledns
 
 EXPOSE 53 53/udp
 
-WORKDIR /etc/simpledns/conf
+WORKDIR /etc/simpledns/zones
 WORKDIR /etc/simpledns
 
 ENTRYPOINT ["/simpledns"]

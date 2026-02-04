@@ -5,10 +5,12 @@ services:
     container_name: simpledns
     command: 
       - -forwarders=1.1.1.1,1.0.0.1 
-      - -debug 
-      - -confdir=/etc/simpledns/conf
+      - -log-level=debug
+      - -config-file=/etc/simpledns/config.yaml
+      - -zones-dir=/etc/simpledns/zones
     ports:
       - "53:53"
       - "53:53/udp"
     volumes:
-      - ./conf/homelab.int.yaml:/etc/simpledns/conf/homelab.int.yaml
+      - ./zones/homelab.int.yaml:/etc/simpledns/zones/homelab.int.yaml
+      - ./config.yaml:/etc/simpledns/config.yaml

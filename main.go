@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,7 +19,6 @@ import (
 )
 
 var zones map[string][]dns.RR
-var debug bool
 var forwarders []string
 var forwardTimeout time.Duration = 2 * time.Second
 var loadedZoneNames []string
@@ -101,9 +101,7 @@ func forwardQuery(ctx context.Context, msg *dns.Msg) (*dns.Msg, error) {
 	for _, srv := range forwarders {
 		resp, _, err := c.ExchangeContext(ctx, msg, srv)
 		if err != nil {
-			if debug {
-				log.Printf("forward to %s failed: %v", srv, err)
-			}
+			slog.Debug("forward to %s failed", "server", srv, "error", err)
 			continue
 		}
 		if resp == nil {
@@ -216,10 +214,10 @@ func initZones(confDir string) {
 	if confDir != "" {
 		if info, err := os.Stat(confDir); err == nil && info.IsDir() {
 			if err := loadZonesFromDir(confDir); err == nil {
-				log.Printf("Loaded zones from directory %s", confDir)
+				slog.Info("Loaded zones from directory", "path", confDir)
 				return
 			} else {
-				log.Printf("Failed to load zones from dir %s: %v", confDir, err)
+				slog.Warn("Failed to load zones from directory", "path", confDir, "error", err)
 			}
 		}
 	}
@@ -245,11 +243,9 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 
 	if len(r.Question) == 0 {
-		if debug {
-			log.Printf("Received empty query from %s", w.RemoteAddr())
-		}
-		if err := w.WriteMsg(m); err != nil && debug {
-			log.Printf("WriteMsg error (empty query) to %s: %v", w.RemoteAddr(), err)
+		slog.Debug("Received empty query", "client", w.RemoteAddr())
+		if err := w.WriteMsg(m); err != nil {
+			slog.Debug("WriteMsg error on empty query", "client", w.RemoteAddr(), "error", err)
 		}
 		return
 	}
@@ -258,10 +254,8 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 	name := q.Name
 	qtype := q.Qtype
 
-	if debug {
-		t := dns.TypeToString[qtype]
-		log.Printf("Received query from %s: %s %s", w.RemoteAddr(), name, t)
-	}
+	t := dns.TypeToString[qtype]
+	slog.Debug("Received query", "client", w.RemoteAddr(), "name", name, "type", t)
 
 	answers := []dns.RR{}
 	if rrlist, ok := zones[name]; ok {
@@ -282,56 +276,71 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 			ctx, cancel := context.WithTimeout(context.Background(), forwardTimeout)
 			defer cancel()
 			if resp, err := forwardQuery(ctx, r); err == nil && resp != nil {
-				if debug {
-					log.Printf("Forwarded %s to upstream, replying to %s", name, w.RemoteAddr())
-				}
+				slog.Debug("Forwarded query", "name", name, "client", w.RemoteAddr())
 				// preserve original ID
 				resp.Id = r.Id
-				if err := w.WriteMsg(resp); err != nil && debug {
-					log.Printf("failed to write forwarded response to %s: %v", w.RemoteAddr(), err)
+				if err := w.WriteMsg(resp); err != nil {
+					slog.Debug("failed to write forwarded response", "client", w.RemoteAddr(), "error", err)
 				}
 				return
-			} else if debug {
-				log.Printf("forwarding failed for %s: %v", name, err)
+			} else {
+				slog.Debug("forwarding failed", "name", name, "error", err)
 			}
 		}
 
 		m.Rcode = dns.RcodeNameError // NXDOMAIN
 		if err := w.WriteMsg(m); err != nil {
-			if debug {
-				log.Printf("Failed to send NXDOMAIN for %s to %s: %v", name, w.RemoteAddr(), err)
-			}
-		} else if debug {
-			log.Printf("Sent NXDOMAIN for %s to %s", name, w.RemoteAddr())
+			slog.Debug("Failed to send NXDOMAIN", "name", name, "client", w.RemoteAddr(), "error", err)
+		} else {
+			slog.Debug("Sent NXDOMAIN", "name", name, "client", w.RemoteAddr())
 		}
 		return
 	}
 
 	m.Answer = append(m.Answer, answers...)
 	if err := w.WriteMsg(m); err != nil {
-		if debug {
-			log.Printf("Failed to send reply for %s to %s: %v", name, w.RemoteAddr(), err)
-		}
-	} else if debug {
-		log.Printf("Replied to %s: %d answer(s) for %s", w.RemoteAddr(), len(m.Answer), name)
+		slog.Debug("Failed to send reply", "name", name, "client", w.RemoteAddr(), "error", err)
+	} else {
+		slog.Debug("Replied", "name", name, "client", w.RemoteAddr(), "answers", len(m.Answer))
 	}
 }
 
 func main() {
-	log.Println("Starting simple DNS server...")
 	// Use flag types that record whether they were set so flags can override config file
 	var zonesDirFlag stringFlag
 	var forwardersFlag stringFlag
 	var configFileFlag stringFlag
+	var logLevelFlag string
 
 	// register flags with defaults
 	configFileFlag.value = "config.yaml"
-	zonesDirFlag.value = "conf"
+	zonesDirFlag.value = "zones"
 	flag.Var(&configFileFlag, "config-file", "path to the configuration file (YAML format)")
 	flag.Var(&zonesDirFlag, "zones-dir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
-	flag.BoolVar(&debug, "debug", false, "enable debug logs (show received queries)")
+	flag.StringVar(&logLevelFlag, "log-level", "info", "log level (debug, info, warn, error)")
 	flag.Parse()
+
+	// Configure slog based on log level
+	var logLevel slog.Level
+	switch strings.ToLower(logLevelFlag) {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn", "warning":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
+	// Create handler with the configured level
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
+	slog.SetDefault(slog.New(handler))
+
+	slog.Info("Starting simple DNS server")
 
 	// Load optional app config file if present
 	if cfgApp, err := loadAppConfig(configFileFlag.value); err == nil {
@@ -380,10 +389,11 @@ func main() {
 		zoneNames = append(zoneNames, z)
 	}
 	sort.Strings(zoneNames)
-	log.Printf("Config initialized: zones_dir=%s forwarders=%v forward_timeout=%s loaded_zones=%d",
-		zonesDirFlag.value, forwarders, forwardTimeout, len(zoneNames))
+	slog.Info("Config initialized", "zones_dir", zonesDirFlag.value, "forwarders", len(forwarders), "forward_timeout", forwardTimeout, "loaded_zones", len(zoneNames))
 	if len(zoneNames) > 0 {
-		log.Printf("Loaded zones: %v", zoneNames)
+		slog.Info("Loaded zones", "zones", zoneNames)
+	} else {
+		slog.Warn("No zones loaded")
 	}
 
 	dns.HandleFunc(".", handleDNS)
@@ -393,16 +403,18 @@ func main() {
 
 	// Run servers in goroutines
 	go func() {
-		log.Printf("Starting UDP server on %s", udpServer.Addr)
+		slog.Info("Starting UDP server", "addr", udpServer.Addr)
 		if err := udpServer.ListenAndServe(); err != nil {
-			log.Fatalf("failed to start UDP server: %v", err)
+			slog.Error("failed to start UDP server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	go func() {
-		log.Printf("Starting TCP server on %s", tcpServer.Addr)
+		slog.Info("Starting TCP server", "addr", tcpServer.Addr)
 		if err := tcpServer.ListenAndServe(); err != nil {
-			log.Fatalf("failed to start TCP server: %v", err)
+			slog.Error("failed to start TCP server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -411,10 +423,10 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	log.Println("Shutting down servers...")
+	slog.Info("Shutting down servers...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = udpServer.ShutdownContext(ctx)
 	_ = tcpServer.ShutdownContext(ctx)
-	fmt.Println("Servers stopped")
+	slog.Info("Servers stopped")
 }
