@@ -24,27 +24,36 @@ cd /path/to/simpledns
 - Flags disponibles (priorisent les valeurs du fichier de configuration si fournis):
 
 ```bash
+# utilise le fichier de configuration par défaut (config.yaml)
+sudo ./simpledns
+
+# utilise un fichier de configuration personnalisé
+sudo ./simpledns -config-file /path/to/custom.yaml
+
 # charge les fichiers YAML depuis le dossier `conf/` (ou défini en config)
-sudo ./simpledns --confdir conf
+sudo ./simpledns -zones-dir conf
 
 # définir les serveurs upstream en CLI (prioritaire sur la config)
-sudo ./simpledns --forwarders 1.1.1.1,8.8.8.8
+sudo ./simpledns -forwarders 1.1.1.1,8.8.8.8
+
+# activer les logs de debug
+sudo ./simpledns -debug
 ```
 
-Configuration générale via `simpledns.json`:
+Configuration générale via `config.yaml`:
 
-Placez un fichier `simpledns.json` à la racine du projet pour définir les options globales. Exemple :
+Placez un fichier `config.yaml` à la racine du projet pour définir les options globales. Exemple :
 
-```json
-{
-  "confdir": "conf",
-  "forwarders": ["1.1.1.1", "8.8.8.8"],
-  "forward_timeout_seconds": 2
-}
+```yaml
+zones_dir: conf
+forwarders:
+  - 1.1.1.1
+  - 8.8.8.8
+forward_timeout_seconds: 2
 ```
 
 Champs supportés:
-- `confdir`: dossier contenant les fichiers de zone YAML.
+- `zones_dir`: dossier contenant les fichiers de zone YAML.
 - `forwarders`: liste d'upstreams DNS (sans port ou `host:port`).
 - `forward_timeout_seconds`: timeout en secondes pour les forwards.
 
@@ -67,7 +76,8 @@ Le projet utilise des workflows GitHub Actions pour valider les changements :
 Voir [BUILD_VALIDATION.md](BUILD_VALIDATION.md) pour plus de détails.
 
 Notes:
-- Les flags CLI ont priorité sur les valeurs définies dans `simpledns.json`.
+- Les flags CLI ont priorité sur les valeurs définies dans `config.yaml`.
+- Le flag `-config-file` permet de spécifier un fichier de configuration personnalisé (par défaut: `config.yaml`).
 - Si un nom demandé n'existe pas localement, le serveur forwardera la requête vers les upstreams listés (si configurés).
 
 
