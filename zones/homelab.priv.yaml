@@ -1,0 +1,22 @@
+zone_config:
+  name: homelab.priv
+  origin: homelab.priv.
+  ttl: 3600
+
+soa:
+  ns: ns.homelab.priv.
+  admin: hostmaster@homelab.priv
+  serial: 1
+  refresh: 3600
+  retry: 600
+  expire: 604800
+
+dns_records:
+  - name: nas
+    type: A
+    value: 192.168.23.220
+    ttl: 3600
+  - name: status
+    type: CNAME
+    value: nas.homelab.priv.
+    ttl: 3600
