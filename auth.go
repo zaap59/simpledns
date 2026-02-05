@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -194,10 +195,12 @@ func handleLogin(c *gin.Context) {
 
 		tmpl := template.Must(template.New("login").Parse(loginHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Redirect": redirect,
 			"Error":    "",
-		})
+		}); err != nil {
+			slog.Error("failed to render login template", "error", err)
+		}
 		return
 	}
 
@@ -212,10 +215,12 @@ func handleLogin(c *gin.Context) {
 	if !ValidateLogin(username, password) {
 		tmpl := template.Must(template.New("login").Parse(loginHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Redirect": redirect,
 			"Error":    "Invalid username or password",
-		})
+		}); err != nil {
+			slog.Error("failed to render login template", "error", err)
+		}
 		return
 	}
 
@@ -224,10 +229,12 @@ func handleLogin(c *gin.Context) {
 	if err != nil {
 		tmpl := template.Must(template.New("login").Parse(loginHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Redirect": redirect,
 			"Error":    "Failed to create session",
-		})
+		}); err != nil {
+			slog.Error("failed to render login template", "error", err)
+		}
 		return
 	}
 
@@ -247,9 +254,11 @@ func handleSetup(c *gin.Context) {
 	if c.Request.Method == "GET" {
 		tmpl := template.Must(template.New("setup").Parse(setupHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Error": "",
-		})
+		}); err != nil {
+			slog.Error("failed to render setup template", "error", err)
+		}
 		return
 	}
 
@@ -260,36 +269,44 @@ func handleSetup(c *gin.Context) {
 	if password == "" {
 		tmpl := template.Must(template.New("setup").Parse(setupHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Error": "Password is required",
-		})
+		}); err != nil {
+			slog.Error("failed to render setup template", "error", err)
+		}
 		return
 	}
 
 	if len(password) < 8 {
 		tmpl := template.Must(template.New("setup").Parse(setupHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Error": "Password must be at least 8 characters",
-		})
+		}); err != nil {
+			slog.Error("failed to render setup template", "error", err)
+		}
 		return
 	}
 
 	if password != confirmPassword {
 		tmpl := template.Must(template.New("setup").Parse(setupHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Error": "Passwords do not match",
-		})
+		}); err != nil {
+			slog.Error("failed to render setup template", "error", err)
+		}
 		return
 	}
 
 	if err := CreateAdmin(password); err != nil {
 		tmpl := template.Must(template.New("setup").Parse(setupHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Error": "Failed to create admin user: " + err.Error(),
-		})
+		}); err != nil {
+			slog.Error("failed to render setup template", "error", err)
+		}
 		return
 	}
 
@@ -404,7 +421,7 @@ func ListAPITokens(username string) ([]APIToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tokens []APIToken
 	for rows.Next() {
@@ -455,7 +472,9 @@ func ValidateAPIToken(token string) (string, bool) {
 	}
 
 	// Update last used timestamp
-	go database.db.Exec("UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", tokenID)
+	go func() {
+		_, _ = database.db.Exec("UPDATE api_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", tokenID)
+	}()
 
 	return username, true
 }
@@ -519,14 +538,16 @@ func handleAccount(c *gin.Context) {
 	if c.Request.Method == "GET" {
 		tmpl := template.Must(template.New("account").Parse(sidebarHTML + accountHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Username":    usernameStr,
 			"Mode":        dbMode,
 			"CurrentPath": "/account",
 			"Error":       "",
 			"Success":     "",
 			"APITokens":   tokens,
-		})
+		}); err != nil {
+			slog.Error("failed to render account template", "error", err)
+		}
 		return
 	}
 
@@ -538,14 +559,16 @@ func handleAccount(c *gin.Context) {
 	renderError := func(errMsg string) {
 		tmpl := template.Must(template.New("account").Parse(sidebarHTML + accountHTML))
 		c.Header("Content-Type", "text/html")
-		tmpl.Execute(c.Writer, gin.H{
+		if err := tmpl.Execute(c.Writer, gin.H{
 			"Username":    usernameStr,
 			"Mode":        dbMode,
 			"CurrentPath": "/account",
 			"Error":       errMsg,
 			"Success":     "",
 			"APITokens":   tokens,
-		})
+		}); err != nil {
+			slog.Error("failed to render account template", "error", err)
+		}
 	}
 
 	// Validate current password
@@ -577,14 +600,16 @@ func handleAccount(c *gin.Context) {
 	// Success
 	tmpl := template.Must(template.New("account").Parse(sidebarHTML + accountHTML))
 	c.Header("Content-Type", "text/html")
-	tmpl.Execute(c.Writer, gin.H{
+	if err := tmpl.Execute(c.Writer, gin.H{
 		"Username":    usernameStr,
 		"Mode":        dbMode,
 		"CurrentPath": "/account",
 		"Error":       "",
 		"Success":     "Password updated successfully",
 		"APITokens":   tokens,
-	})
+	}); err != nil {
+		slog.Error("failed to render account template", "error", err)
+	}
 }
 
 // handleCreateAPIToken handles API token creation
@@ -646,10 +671,12 @@ func handleListAPITokens(c *gin.Context) {
 	// Otherwise render the tokens page
 	tmpl := template.Must(template.New("tokens").Parse(sidebarHTML + apiTokensHTML))
 	c.Header("Content-Type", "text/html")
-	tmpl.Execute(c.Writer, gin.H{
+	if err := tmpl.Execute(c.Writer, gin.H{
 		"Username":    usernameStr,
 		"Mode":        dbMode,
 		"CurrentPath": "/account/tokens",
 		"APITokens":   tokens,
-	})
+	}); err != nil {
+		slog.Error("failed to render tokens template", "error", err)
+	}
 }

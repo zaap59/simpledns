@@ -234,7 +234,7 @@ func (d *Database) ListZones() ([]DBZone, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var zones []DBZone
 	for rows.Next() {
@@ -322,7 +322,7 @@ func (d *Database) ListRecordsByZone(zoneID int64) ([]DBRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []DBRecord
 	for rows.Next() {
@@ -361,7 +361,7 @@ func (d *Database) DeleteRecord(id int64) error {
 
 	// Get zone_id first for serial update
 	var zoneID int64
-	d.db.QueryRow(`SELECT zone_id FROM records WHERE id = ?`, id).Scan(&zoneID)
+	_ = d.db.QueryRow(`SELECT zone_id FROM records WHERE id = ?`, id).Scan(&zoneID)
 
 	_, err := d.db.Exec(`DELETE FROM records WHERE id = ?`, id)
 	if err != nil {
@@ -414,7 +414,7 @@ func (d *Database) ListForwarders() ([]DBForwarder, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var forwarders []DBForwarder
 	for rows.Next() {
