@@ -465,6 +465,7 @@ func handleAPIDeleteForwarder(c *gin.Context) {
 // registerAPIRoutes registers all CRUD API routes (only in sqlite mode)
 func registerAPIRoutes(router *gin.Engine) {
 	api := router.Group("/api")
+	api.Use(APIAuthMiddleware())
 	{
 		// Zones CRUD
 		api.POST("/zones", handleAPICreateZone)

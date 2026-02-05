@@ -341,7 +341,7 @@ func findZoneForRecord(recordName string) string {
 
 // Web handlers
 func handleWebIndex(c *gin.Context) {
-	tmpl := template.Must(template.New("index").Parse(indexHTML))
+	tmpl := template.Must(template.New("index").Parse(sidebarHTML + indexHTML))
 	zones := getZonesInfo()
 	totalRecords := 0
 	for _, z := range zones {
@@ -354,6 +354,7 @@ func handleWebIndex(c *gin.Context) {
 		Mode        string
 		EditMode    bool
 		Forwarders  []string
+		CurrentPath string
 	}{
 		Zones:       zones,
 		ZoneCount:   len(zones),
@@ -361,6 +362,7 @@ func handleWebIndex(c *gin.Context) {
 		Mode:        dbMode,
 		EditMode:    dbMode == "sqlite",
 		Forwarders:  forwarders,
+		CurrentPath: "/",
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -387,15 +389,19 @@ func handleWebZoneRecords(c *gin.Context) {
 		return
 	}
 
-	tmpl := template.Must(template.New("zone_records").Parse(zoneRecordsHTML))
+	tmpl := template.Must(template.New("zone_records").Parse(sidebarHTML + zoneRecordsHTML))
 	data := struct {
-		Zone     *ZoneInfo
-		Mode     string
-		EditMode bool
+		Zone        *ZoneInfo
+		AllZones    []ZoneInfo
+		Mode        string
+		EditMode    bool
+		CurrentPath string
 	}{
-		Zone:     zone,
-		Mode:     dbMode,
-		EditMode: dbMode == "sqlite",
+		Zone:        zone,
+		AllZones:    zones,
+		Mode:        dbMode,
+		EditMode:    dbMode == "sqlite",
+		CurrentPath: "/zones",
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -422,15 +428,39 @@ func handleWebZoneSettings(c *gin.Context) {
 		return
 	}
 
-	tmpl := template.Must(template.New("zone_settings").Parse(zoneSettingsHTML))
+	tmpl := template.Must(template.New("zone_settings").Parse(sidebarHTML + zoneSettingsHTML))
 	data := struct {
-		Zone     *ZoneInfo
-		Mode     string
-		EditMode bool
+		Zone        *ZoneInfo
+		AllZones    []ZoneInfo
+		Mode        string
+		EditMode    bool
+		CurrentPath string
 	}{
-		Zone:     zone,
-		Mode:     dbMode,
-		EditMode: dbMode == "sqlite",
+		Zone:        zone,
+		AllZones:    zones,
+		Mode:        dbMode,
+		EditMode:    dbMode == "sqlite",
+		CurrentPath: "/zones",
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleWebSettings(c *gin.Context) {
+	tmpl := template.Must(template.New("settings").Parse(sidebarHTML + globalSettingsHTML))
+	data := struct {
+		Mode        string
+		EditMode    bool
+		Forwarders  []string
+		CurrentPath string
+	}{
+		Mode:        dbMode,
+		EditMode:    dbMode == "sqlite",
+		Forwarders:  forwarders,
+		CurrentPath: "/settings",
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -458,11 +488,28 @@ func startWebServer(port int) *http.Server {
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	// Routes
-	router.GET("/", handleWebIndex)
-	router.GET("/zones/:zone/records", handleWebZoneRecords)
-	router.GET("/zones/:zone/settings", handleWebZoneSettings)
+	// Public routes (no auth required)
+	router.GET("/login", handleLogin)
+	router.POST("/login", handleLogin)
+	router.GET("/setup", handleSetup)
+	router.POST("/setup", handleSetup)
+	router.GET("/logout", handleLogout)
 	router.GET("/api/health", handleAPIHealth)
+
+	// Protected routes (auth required)
+	protected := router.Group("/")
+	protected.Use(AuthMiddleware())
+	{
+		protected.GET("/", handleWebIndex)
+		protected.GET("/settings", handleWebSettings)
+		protected.GET("/account", handleAccount)
+		protected.POST("/account", handleAccount)
+		protected.POST("/account/tokens", handleCreateAPIToken)
+		protected.DELETE("/account/tokens/:id", handleDeleteAPIToken)
+		protected.GET("/account/tokens", handleListAPITokens)
+		protected.GET("/zones/:zone/records", handleWebZoneRecords)
+		protected.GET("/zones/:zone/settings", handleWebZoneSettings)
+	}
 
 	// Register CRUD routes only in sqlite mode, otherwise just read-only zones
 	if dbMode == "sqlite" {
