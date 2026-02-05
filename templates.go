@@ -9,6 +9,7 @@ const headHTML = `
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/static/config-modal.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -24,6 +25,9 @@ const headHTML = `
                             500: '#3b82f6',
                             600: '#2563eb',
                             700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                            950: '#172554',
                         },
                     }
                 }
@@ -34,6 +38,138 @@ const headHTML = `
         [x-cloak] { display: none !important; }
     </style>
     <script>if (localStorage.getItem('darkMode') === 'true') { document.documentElement.classList.add('dark'); }</script>
+`
+
+// Config modal JavaScript - served at /static/config-modal.js
+const configModalJS = `
+let serverIPValue = '';
+
+function showConfigModal() {
+    document.getElementById('configModal').classList.remove('hidden');
+    document.getElementById('configModal').classList.add('flex');
+    fetch('/api/server-info')
+        .then(r => r.json())
+        .then(data => {
+            serverIPValue = data.ip || window.location.hostname;
+            document.getElementById('configModalServerIP').textContent = serverIPValue;
+            document.querySelectorAll('.config-ip').forEach(el => {
+                el.textContent = serverIPValue;
+            });
+        })
+        .catch(() => {
+            serverIPValue = window.location.hostname;
+            document.getElementById('configModalServerIP').textContent = serverIPValue;
+            document.querySelectorAll('.config-ip').forEach(el => {
+                el.textContent = serverIPValue;
+            });
+        });
+}
+
+function hideConfigModal() {
+    document.getElementById('configModal').classList.add('hidden');
+    document.getElementById('configModal').classList.remove('flex');
+}
+
+function copyServerIP() {
+    navigator.clipboard.writeText(serverIPValue).then(() => {
+        const btn = event.currentTarget;
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+        setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
+    });
+}
+`
+
+// Config modal HTML - to be included in all pages
+const configModalHTML = `
+    <!-- Configuration Modal -->
+    <div id="configModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">DNS Server Configuration</h2>
+                <button onclick="hideConfigModal()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div class="p-4 bg-brand-50 dark:bg-brand-950 rounded-xl border border-brand-200 dark:border-brand-700">
+                    <p class="text-sm text-brand-700 dark:text-brand-200 mb-2">Configure your devices to use this DNS server:</p>
+                    <div class="flex items-center gap-3">
+                        <code id="configModalServerIP" class="flex-1 px-4 py-3 bg-white dark:bg-gray-800 rounded-lg font-mono text-lg font-bold text-center">Loading...</code>
+                        <button onclick="copyServerIP()" class="p-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors" title="Copy to clipboard">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <h3 class="font-semibold text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wide">Configuration Instructions</h3>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🐧 Linux</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Edit <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">/etc/resolv.conf</code>:</p>
+                            <pre class="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto"><code>nameserver <span class="config-ip">SERVER_IP</span></code></pre>
+                            <p>Or use NetworkManager/systemd-resolved for persistent configuration.</p>
+                        </div>
+                    </details>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🍎 macOS</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>System Preferences → Network → Advanced → DNS</p>
+                            <p>Add <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code> as DNS server.</p>
+                        </div>
+                    </details>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🪟 Windows</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Control Panel → Network → Change adapter settings</p>
+                            <p>Right-click adapter → Properties → IPv4 → Use the following DNS server:</p>
+                            <p>Enter <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code></p>
+                        </div>
+                    </details>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🌐 Router (Recommended)</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Access your router's admin panel and set the DNS server to:</p>
+                            <p><code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code></p>
+                            <p class="text-green-600 dark:text-green-400">✓ This will apply to all devices on your network.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="hideConfigModal()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Got it</button>
+            </div>
+        </div>
+    </div>
 `
 
 // Header template - PageTitle determines the page title, ShowSetupButton shows setup button
@@ -319,136 +455,7 @@ const indexHTML = `<!DOCTYPE html>
     </div>
     {{end}}
 
-    <!-- Configuration Modal -->
-    <div id="configModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-xl">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold">DNS Server Configuration</h2>
-                <button onclick="hideConfigModal()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="space-y-4">
-                <div class="p-4 bg-brand-50 dark:bg-brand-950 rounded-xl border border-brand-200 dark:border-brand-700">
-                    <p class="text-sm text-brand-700 dark:text-brand-200 mb-2">Configure your devices to use this DNS server:</p>
-                    <div class="flex items-center gap-3">
-                        <code id="serverIP" class="flex-1 px-4 py-3 bg-white dark:bg-gray-800 rounded-lg font-mono text-lg font-bold text-center">Loading...</code>
-                        <button onclick="copyServerIP()" class="p-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors" title="Copy to clipboard">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="space-y-3">
-                    <h3 class="font-semibold text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wide">Configuration Instructions</h3>
-                    
-                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
-                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
-                            <span class="font-medium">🐧 Linux</span>
-                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </summary>
-                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                            <p>Edit <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">/etc/resolv.conf</code>:</p>
-                            <pre class="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto"><code>nameserver <span class="config-ip">SERVER_IP</span></code></pre>
-                            <p>Or use NetworkManager/systemd-resolved for persistent configuration.</p>
-                        </div>
-                    </details>
-                    
-                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
-                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
-                            <span class="font-medium">🍎 macOS</span>
-                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </summary>
-                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                            <p>System Preferences → Network → Advanced → DNS</p>
-                            <p>Add <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code> as DNS server.</p>
-                        </div>
-                    </details>
-                    
-                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
-                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
-                            <span class="font-medium">🪟 Windows</span>
-                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </summary>
-                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                            <p>Control Panel → Network → Change adapter settings</p>
-                            <p>Right-click adapter → Properties → IPv4 → Use the following DNS server:</p>
-                            <p>Enter <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code></p>
-                        </div>
-                    </details>
-                    
-                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
-                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
-                            <span class="font-medium">🌐 Router (Recommended)</span>
-                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
-                        </summary>
-                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                            <p>Access your router's admin panel and set the DNS server to:</p>
-                            <p><code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code></p>
-                            <p class="text-green-600 dark:text-green-400">✓ This will apply to all devices on your network.</p>
-                        </div>
-                    </details>
-                </div>
-            </div>
-            <div class="mt-6 flex justify-end">
-                <button onclick="hideConfigModal()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Got it</button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // Configuration modal
-        let serverIPValue = '';
-        
-        function showConfigModal() {
-            document.getElementById('configModal').classList.remove('hidden');
-            document.getElementById('configModal').classList.add('flex');
-            // Fetch server IP
-            fetch('/api/server-info')
-                .then(r => r.json())
-                .then(data => {
-                    serverIPValue = data.ip || window.location.hostname;
-                    document.getElementById('serverIP').textContent = serverIPValue;
-                    // Update all IP placeholders
-                    document.querySelectorAll('.config-ip').forEach(el => {
-                        el.textContent = serverIPValue;
-                    });
-                })
-                .catch(() => {
-                    serverIPValue = window.location.hostname;
-                    document.getElementById('serverIP').textContent = serverIPValue;
-                    document.querySelectorAll('.config-ip').forEach(el => {
-                        el.textContent = serverIPValue;
-                    });
-                });
-        }
-        
-        function hideConfigModal() {
-            document.getElementById('configModal').classList.add('hidden');
-            document.getElementById('configModal').classList.remove('flex');
-        }
-        
-        function copyServerIP() {
-            navigator.clipboard.writeText(serverIPValue).then(() => {
-                const btn = event.currentTarget;
-                const originalHTML = btn.innerHTML;
-                btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
-                setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
-            });
-        }
-        
         function showAddZoneModal() {
             document.getElementById('addZoneModal').classList.remove('hidden');
             document.getElementById('addZoneModal').classList.add('flex');
@@ -479,6 +486,7 @@ const indexHTML = `<!DOCTYPE html>
             }
         }
     </script>
+` + configModalHTML + `
 </body>
 </html>
 `
@@ -899,6 +907,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
             }
         }
     </script>
+` + configModalHTML + `
 </body>
 </html>
 `
@@ -1072,6 +1081,7 @@ const zoneSettingsHTML = `<!DOCTYPE html>
             }
         }
     </script>
+` + configModalHTML + `
 </body>
 </html>
 `
@@ -1276,6 +1286,7 @@ const globalSettingsHTML = `<!DOCTYPE html>
             }
         }
     </script>
+` + configModalHTML + `
 </body>
 </html>
 `
@@ -1469,6 +1480,7 @@ const accountHTML = `<!DOCTYPE html>
             </main>
         </div>
     </div>
+` + configModalHTML + `
 </body>
 </html>
 `
@@ -1683,6 +1695,7 @@ const apiTokensHTML = `<!DOCTYPE html>
             }
         }
     </script>
+` + configModalHTML + `
 </body>
 </html>
 `

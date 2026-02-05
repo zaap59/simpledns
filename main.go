@@ -493,6 +493,12 @@ func handleAPIHealth(c *gin.Context) {
 	})
 }
 
+// handleConfigModalJS serves the config modal JavaScript
+func handleConfigModalJS(c *gin.Context) {
+	c.Header("Content-Type", "application/javascript")
+	c.String(http.StatusOK, configModalJS)
+}
+
 // handleAPIServerInfo returns server information including IP address
 func handleAPIServerInfo(c *gin.Context) {
 	// Try to get the server's IP from the request
@@ -526,6 +532,9 @@ func startWebServer(port int) *http.Server {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
+
+	// Static files (no auth required)
+	router.GET("/static/config-modal.js", handleConfigModalJS)
 
 	// Public routes (no auth required)
 	router.GET("/login", handleLogin)
