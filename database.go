@@ -20,6 +20,7 @@ type Database struct {
 type DBZone struct {
 	ID      int64  `json:"id"`
 	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
 	TTL     int    `json:"ttl"`
 	NS      string `json:"ns"`
 	Admin   string `json:"admin"`
@@ -77,6 +78,7 @@ func (d *Database) createTables() error {
 	CREATE TABLE IF NOT EXISTS zones (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT UNIQUE NOT NULL,
+		enabled INTEGER DEFAULT 1,
 		ttl INTEGER DEFAULT 3600,
 		ns TEXT DEFAULT 'ns1.local.',
 		admin TEXT DEFAULT 'admin.local.',
@@ -137,9 +139,9 @@ func (d *Database) CreateZone(zone *DBZone) error {
 	zone.Name = dns.Fqdn(zone.Name)
 
 	result, err := d.db.Exec(`
-		INSERT INTO zones (name, ttl, ns, admin, serial, refresh, retry, expire)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, zone.Name, zone.TTL, zone.NS, zone.Admin, zone.Serial, zone.Refresh, zone.Retry, zone.Expire)
+		INSERT INTO zones (name, enabled, ttl, ns, admin, serial, refresh, retry, expire)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, zone.Name, zone.Enabled, zone.TTL, zone.NS, zone.Admin, zone.Serial, zone.Refresh, zone.Retry, zone.Expire)
 	if err != nil {
 		return err
 	}
@@ -155,9 +157,9 @@ func (d *Database) GetZone(id int64) (*DBZone, error) {
 
 	zone := &DBZone{}
 	err := d.db.QueryRow(`
-		SELECT id, name, ttl, ns, admin, serial, refresh, retry, expire
+		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
 		FROM zones WHERE id = ?
-	`, id).Scan(&zone.ID, &zone.Name, &zone.TTL, &zone.NS, &zone.Admin,
+	`, id).Scan(&zone.ID, &zone.Name, &zone.Enabled, &zone.TTL, &zone.NS, &zone.Admin,
 		&zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire)
 	if err != nil {
 		return nil, err
@@ -173,9 +175,9 @@ func (d *Database) GetZoneByName(name string) (*DBZone, error) {
 	name = dns.Fqdn(name)
 	zone := &DBZone{}
 	err := d.db.QueryRow(`
-		SELECT id, name, ttl, ns, admin, serial, refresh, retry, expire
+		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
 		FROM zones WHERE name = ?
-	`, name).Scan(&zone.ID, &zone.Name, &zone.TTL, &zone.NS, &zone.Admin,
+	`, name).Scan(&zone.ID, &zone.Name, &zone.Enabled, &zone.TTL, &zone.NS, &zone.Admin,
 		&zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire)
 	if err != nil {
 		return nil, err
@@ -189,7 +191,7 @@ func (d *Database) ListZones() ([]DBZone, error) {
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
-		SELECT id, name, ttl, ns, admin, serial, refresh, retry, expire
+		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
 		FROM zones ORDER BY name
 	`)
 	if err != nil {
@@ -200,7 +202,7 @@ func (d *Database) ListZones() ([]DBZone, error) {
 	var zones []DBZone
 	for rows.Next() {
 		var z DBZone
-		if err := rows.Scan(&z.ID, &z.Name, &z.TTL, &z.NS, &z.Admin,
+		if err := rows.Scan(&z.ID, &z.Name, &z.Enabled, &z.TTL, &z.NS, &z.Admin,
 			&z.Serial, &z.Refresh, &z.Retry, &z.Expire); err != nil {
 			return nil, err
 		}
@@ -216,10 +218,10 @@ func (d *Database) UpdateZone(zone *DBZone) error {
 
 	zone.Name = dns.Fqdn(zone.Name)
 	_, err := d.db.Exec(`
-		UPDATE zones SET name = ?, ttl = ?, ns = ?, admin = ?, 
+		UPDATE zones SET name = ?, enabled = ?, ttl = ?, ns = ?, admin = ?, 
 		serial = serial + 1, refresh = ?, retry = ?, expire = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, zone.Name, zone.TTL, zone.NS, zone.Admin, zone.Refresh, zone.Retry, zone.Expire, zone.ID)
+	`, zone.Name, zone.Enabled, zone.TTL, zone.NS, zone.Admin, zone.Refresh, zone.Retry, zone.Expire, zone.ID)
 	return err
 }
 
@@ -456,6 +458,11 @@ func LoadZonesFromDB() error {
 	loadedZoneNames = nil
 
 	for _, dbZone := range dbZones {
+		// Skip disabled zones
+		if !dbZone.Enabled {
+			continue
+		}
+
 		zoneName := dns.Fqdn(dbZone.Name)
 		loadedZoneNames = append(loadedZoneNames, zoneName)
 

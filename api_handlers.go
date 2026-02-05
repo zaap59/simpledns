@@ -13,6 +13,7 @@ import (
 
 type CreateZoneRequest struct {
 	Name    string `json:"name" binding:"required"`
+	Enabled *bool  `json:"enabled"`
 	TTL     int    `json:"ttl"`
 	NS      string `json:"ns"`
 	Admin   string `json:"admin"`
@@ -44,6 +45,7 @@ func handleAPICreateZone(c *gin.Context) {
 
 	zone := &DBZone{
 		Name:    req.Name,
+		Enabled: true,
 		TTL:     req.TTL,
 		NS:      req.NS,
 		Admin:   req.Admin,
@@ -54,6 +56,9 @@ func handleAPICreateZone(c *gin.Context) {
 	}
 
 	// Set defaults
+	if req.Enabled != nil {
+		zone.Enabled = *req.Enabled
+	}
 	if zone.TTL == 0 {
 		zone.TTL = 3600
 	}
@@ -154,12 +159,17 @@ func handleAPIUpdateZone(c *gin.Context) {
 	zone := &DBZone{
 		ID:      id,
 		Name:    req.Name,
+		Enabled: true,
 		TTL:     req.TTL,
 		NS:      req.NS,
 		Admin:   req.Admin,
 		Refresh: req.Refresh,
 		Retry:   req.Retry,
 		Expire:  req.Expire,
+	}
+
+	if req.Enabled != nil {
+		zone.Enabled = *req.Enabled
 	}
 
 	if err := database.UpdateZone(zone); err != nil {
@@ -175,6 +185,38 @@ func handleAPIUpdateZone(c *gin.Context) {
 
 	slog.Info("Zone updated", "name", zone.Name, "id", zone.ID)
 	c.JSON(http.StatusOK, zone)
+}
+
+func handleAPIToggleZone(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid zone id"})
+		return
+	}
+
+	zone, err := database.GetZone(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "zone not found"})
+		return
+	}
+
+	// Toggle the enabled status
+	zone.Enabled = !zone.Enabled
+
+	if err := database.UpdateZone(zone); err != nil {
+		slog.Error("failed to toggle zone", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to toggle zone"})
+		return
+	}
+
+	// Reload zones into memory
+	if err := LoadZonesFromDB(); err != nil {
+		slog.Error("failed to reload zones", "error", err)
+	}
+
+	slog.Info("Zone toggled", "name", zone.Name, "enabled", zone.Enabled)
+	c.JSON(http.StatusOK, gin.H{"enabled": zone.Enabled})
 }
 
 func handleAPIDeleteZone(c *gin.Context) {
@@ -429,6 +471,7 @@ func registerAPIRoutes(router *gin.Engine) {
 		api.GET("/zones", handleAPIListZones)
 		api.GET("/zones/:id", handleAPIGetZone)
 		api.PUT("/zones/:id", handleAPIUpdateZone)
+		api.PATCH("/zones/:id/toggle", handleAPIToggleZone)
 		api.DELETE("/zones/:id", handleAPIDeleteZone)
 
 		// Records CRUD (use :id consistently)
