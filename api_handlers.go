@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"log/slog"
 
@@ -80,6 +82,12 @@ func handleAPICreateZone(c *gin.Context) {
 	}
 
 	if err := database.CreateZone(zone); err != nil {
+		// Check if it's a unique constraint violation (zone already exists)
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			slog.Warn("zone already exists", "name", req.Name)
+			c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("zone '%s' already exists", req.Name)})
+			return
+		}
 		slog.Error("failed to create zone", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create zone"})
 		return
