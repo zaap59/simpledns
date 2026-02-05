@@ -473,6 +473,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Name</span></th>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Type</span></th>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Value</span></th>
+                                    <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Priority</span></th>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">TTL</span></th>
                                     {{if .EditMode}}<th class="px-5 py-3 sm:px-6 text-right"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Actions</span></th>{{end}}
                                 </tr>
@@ -493,6 +494,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                                             {{else}}bg-gray-100 text-gray-800 dark:bg-gray-500/20 dark:text-gray-300{{end}}" data-field="type">{{.Type}}</span>
                                     </td>
                                     <td class="px-5 py-4 sm:px-6"><span class="font-mono text-sm text-gray-600 dark:text-gray-300 break-all" data-field="value">{{.Value}}</span></td>
+                                    <td class="px-5 py-4 sm:px-6"><span class="text-sm text-gray-500" data-field="priority">{{if eq .Type "MX"}}{{.Priority}}{{else}}-{{end}}</span></td>
                                     <td class="px-5 py-4 sm:px-6"><span class="text-sm text-gray-500" data-field="ttl">{{.TTL}}</span></td>
                                     {{if $.EditMode}}
                                     <td class="px-5 py-4 sm:px-6">
@@ -555,6 +557,11 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                         <input type="text" name="value" required placeholder="192.168.1.1" 
                                class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-800 rounded-lg bg-white dark:bg-white/[0.03] focus:outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
+                    <div id="priorityFieldAdd" style="display: none;">
+                        <label class="block text-sm font-medium mb-2">Priority (MX only)</label>
+                        <input type="number" name="priority" value="10" min="0" max="65535"
+                               class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-800 rounded-lg bg-white dark:bg-white/[0.03] focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
                     <div>
                         <label class="block text-sm font-medium mb-2">TTL</label>
                         <input type="number" name="ttl" value="3600" min="60" 
@@ -598,6 +605,11 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                         <input type="text" id="editRecordValue" required 
                                class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-800 rounded-lg bg-white dark:bg-white/[0.03] focus:outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
+                    <div id="priorityFieldEdit" style="display: none;">
+                        <label class="block text-sm font-medium mb-2">Priority (MX only)</label>
+                        <input type="number" id="editRecordPriority" value="10" min="0" max="65535"
+                               class="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-800 rounded-lg bg-white dark:bg-white/[0.03] focus:outline-none focus:ring-2 focus:ring-brand-500">
+                    </div>
                     <div>
                         <label class="block text-sm font-medium mb-2">TTL</label>
                         <input type="number" id="editRecordTTL" min="60" 
@@ -616,14 +628,42 @@ const zoneRecordsHTML = `<!DOCTYPE html>
     <script>
         const zoneId = {{.Zone.ID}};
         
+        // Toggle priority field visibility based on record type
+        function togglePriorityField(selectElement, fieldId) {
+            const priorityField = document.getElementById(fieldId);
+            if (selectElement.value === 'MX') {
+                priorityField.style.display = 'block';
+            } else {
+                priorityField.style.display = 'none';
+            }
+        }
+        
+        // Add event listeners for type selects
+        document.addEventListener('DOMContentLoaded', function() {
+            const addTypeSelect = document.querySelector('#addRecordForm select[name="type"]');
+            if (addTypeSelect) {
+                addTypeSelect.addEventListener('change', function() {
+                    togglePriorityField(this, 'priorityFieldAdd');
+                });
+            }
+            const editTypeSelect = document.getElementById('editRecordType');
+            if (editTypeSelect) {
+                editTypeSelect.addEventListener('change', function() {
+                    togglePriorityField(this, 'priorityFieldEdit');
+                });
+            }
+        });
+        
         function showAddRecordModal() {
             document.getElementById('addRecordModal').classList.remove('hidden');
             document.getElementById('addRecordModal').classList.add('flex');
+            document.getElementById('priorityFieldAdd').style.display = 'none';
         }
         function hideAddRecordModal() {
             document.getElementById('addRecordModal').classList.add('hidden');
             document.getElementById('addRecordModal').classList.remove('flex');
             document.getElementById('addRecordForm').reset();
+            document.getElementById('priorityFieldAdd').style.display = 'none';
         }
         
         async function submitRecord(event) {
@@ -634,7 +674,8 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                 name: form.name.value,
                 type: form.type.value,
                 value: form.value.value,
-                ttl: parseInt(form.ttl.value) || 3600
+                ttl: parseInt(form.ttl.value) || 3600,
+                priority: form.type.value === 'MX' ? (parseInt(form.priority.value) || 10) : 0
             };
             try {
                 const resp = await fetch('/api/zones/' + zoneId + '/records', {
@@ -657,9 +698,13 @@ const zoneRecordsHTML = `<!DOCTYPE html>
             const row = btn.closest('tr');
             document.getElementById('editRecordId').value = id;
             document.getElementById('editRecordName').value = row.querySelector('[data-field="name"]').textContent.trim();
-            document.getElementById('editRecordType').value = row.querySelector('[data-field="type"]').textContent.trim();
+            const recordType = row.querySelector('[data-field="type"]').textContent.trim();
+            document.getElementById('editRecordType').value = recordType;
             document.getElementById('editRecordValue').value = row.querySelector('[data-field="value"]').textContent.trim();
             document.getElementById('editRecordTTL').value = row.querySelector('[data-field="ttl"]').textContent.trim();
+            const priorityText = row.querySelector('[data-field="priority"]').textContent.trim();
+            document.getElementById('editRecordPriority').value = priorityText === '-' ? 10 : parseInt(priorityText) || 10;
+            document.getElementById('priorityFieldEdit').style.display = recordType === 'MX' ? 'block' : 'none';
             document.getElementById('editRecordModal').classList.remove('hidden');
             document.getElementById('editRecordModal').classList.add('flex');
         }
@@ -667,16 +712,19 @@ const zoneRecordsHTML = `<!DOCTYPE html>
         function hideEditRecordModal() {
             document.getElementById('editRecordModal').classList.add('hidden');
             document.getElementById('editRecordModal').classList.remove('flex');
+            document.getElementById('priorityFieldEdit').style.display = 'none';
         }
         
         async function submitEditRecord(event) {
             event.preventDefault();
             const id = document.getElementById('editRecordId').value;
+            const recordType = document.getElementById('editRecordType').value;
             const data = {
                 name: document.getElementById('editRecordName').value,
-                type: document.getElementById('editRecordType').value,
+                type: recordType,
                 value: document.getElementById('editRecordValue').value,
-                ttl: parseInt(document.getElementById('editRecordTTL').value) || 3600
+                ttl: parseInt(document.getElementById('editRecordTTL').value) || 3600,
+                priority: recordType === 'MX' ? (parseInt(document.getElementById('editRecordPriority').value) || 10) : 0
             };
             try {
                 const resp = await fetch('/api/records/' + id, {

@@ -23,10 +23,11 @@ type CreateZoneRequest struct {
 }
 
 type CreateRecordRequest struct {
-	Name  string `json:"name" binding:"required"`
-	Type  string `json:"type" binding:"required"`
-	Value string `json:"value" binding:"required"`
-	TTL   int    `json:"ttl"`
+	Name     string `json:"name" binding:"required"`
+	Type     string `json:"type" binding:"required"`
+	Value    string `json:"value" binding:"required"`
+	TTL      int    `json:"ttl"`
+	Priority int    `json:"priority"`
 }
 
 type CreateForwarderRequest struct {
@@ -271,11 +272,12 @@ func handleAPICreateRecord(c *gin.Context) {
 	}
 
 	record := &DBRecord{
-		ZoneID: zoneID,
-		Name:   req.Name,
-		Type:   req.Type,
-		Value:  req.Value,
-		TTL:    req.TTL,
+		ZoneID:   zoneID,
+		Name:     req.Name,
+		Type:     req.Type,
+		Value:    req.Value,
+		TTL:      req.TTL,
+		Priority: req.Priority,
 	}
 
 	if record.TTL == 0 {
@@ -336,12 +338,13 @@ func handleAPIUpdateRecord(c *gin.Context) {
 	}
 
 	record := &DBRecord{
-		ID:     id,
-		ZoneID: existing.ZoneID,
-		Name:   req.Name,
-		Type:   req.Type,
-		Value:  req.Value,
-		TTL:    req.TTL,
+		ID:       id,
+		ZoneID:   existing.ZoneID,
+		Name:     req.Name,
+		Type:     req.Type,
+		Value:    req.Value,
+		TTL:      req.TTL,
+		Priority: req.Priority,
 	}
 
 	if record.TTL == 0 {
@@ -390,6 +393,161 @@ func handleAPIDeleteRecord(c *gin.Context) {
 
 	slog.Info("Record deleted", "name", record.Name, "id", id)
 	c.JSON(http.StatusOK, gin.H{"message": "record deleted"})
+}
+
+// handleAPIDeleteRecordInZone handles DELETE /api/zones/:id/records/:record_id
+func handleAPIDeleteRecordInZone(c *gin.Context) {
+	zoneIDStr := c.Param("id")
+	zoneID, err := strconv.ParseInt(zoneIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid zone id"})
+		return
+	}
+
+	recordIDStr := c.Param("record_id")
+	recordID, err := strconv.ParseInt(recordIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid record id"})
+		return
+	}
+
+	// Verify zone exists
+	if _, err := database.GetZone(zoneID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "zone not found"})
+		return
+	}
+
+	record, err := database.GetRecord(recordID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "record not found"})
+		return
+	}
+
+	// Verify record belongs to the zone
+	if record.ZoneID != zoneID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "record not found in this zone"})
+		return
+	}
+
+	if err := database.DeleteRecord(recordID); err != nil {
+		slog.Error("failed to delete record", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete record"})
+		return
+	}
+
+	// Reload zones into memory
+	if err := LoadZonesFromDB(); err != nil {
+		slog.Error("failed to reload zones", "error", err)
+	}
+
+	slog.Info("Record deleted", "name", record.Name, "zone_id", zoneID, "record_id", recordID)
+	c.JSON(http.StatusOK, gin.H{"message": "record deleted"})
+}
+
+// handleAPIUpdateRecordInZone handles PUT /api/zones/:id/records/:record_id
+func handleAPIUpdateRecordInZone(c *gin.Context) {
+	zoneIDStr := c.Param("id")
+	zoneID, err := strconv.ParseInt(zoneIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid zone id"})
+		return
+	}
+
+	recordIDStr := c.Param("record_id")
+	recordID, err := strconv.ParseInt(recordIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid record id"})
+		return
+	}
+
+	// Verify zone exists
+	if _, err := database.GetZone(zoneID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "zone not found"})
+		return
+	}
+
+	existing, err := database.GetRecord(recordID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "record not found"})
+		return
+	}
+
+	// Verify record belongs to the zone
+	if existing.ZoneID != zoneID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "record not found in this zone"})
+		return
+	}
+
+	var req CreateRecordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	record := &DBRecord{
+		ID:       recordID,
+		ZoneID:   zoneID,
+		Name:     req.Name,
+		Type:     req.Type,
+		Value:    req.Value,
+		TTL:      req.TTL,
+		Priority: req.Priority,
+	}
+
+	if record.TTL == 0 {
+		record.TTL = 3600
+	}
+
+	if err := database.UpdateRecord(record); err != nil {
+		slog.Error("failed to update record", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update record"})
+		return
+	}
+
+	// Reload zones into memory
+	if err := LoadZonesFromDB(); err != nil {
+		slog.Error("failed to reload zones", "error", err)
+	}
+
+	slog.Info("Record updated", "name", record.Name, "type", record.Type, "zone_id", zoneID, "record_id", recordID)
+	c.JSON(http.StatusOK, record)
+}
+
+// handleAPIGetRecordInZone handles GET /api/zones/:id/records/:record_id
+func handleAPIGetRecordInZone(c *gin.Context) {
+	zoneIDStr := c.Param("id")
+	zoneID, err := strconv.ParseInt(zoneIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid zone id"})
+		return
+	}
+
+	recordIDStr := c.Param("record_id")
+	recordID, err := strconv.ParseInt(recordIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid record id"})
+		return
+	}
+
+	// Verify zone exists
+	if _, err := database.GetZone(zoneID); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "zone not found"})
+		return
+	}
+
+	record, err := database.GetRecord(recordID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "record not found"})
+		return
+	}
+
+	// Verify record belongs to the zone
+	if record.ZoneID != zoneID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "record not found in this zone"})
+		return
+	}
+
+	c.JSON(http.StatusOK, record)
 }
 
 // Forwarder handlers
@@ -478,6 +636,11 @@ func registerAPIRoutes(router *gin.Engine) {
 		// Records CRUD (use :id consistently)
 		api.POST("/zones/:id/records", handleAPICreateRecord)
 		api.GET("/zones/:id/records", handleAPIListRecords)
+		api.GET("/zones/:id/records/:record_id", handleAPIGetRecordInZone)
+		api.PUT("/zones/:id/records/:record_id", handleAPIUpdateRecordInZone)
+		api.DELETE("/zones/:id/records/:record_id", handleAPIDeleteRecordInZone)
+
+		// Legacy record routes (for backward compatibility)
 		api.PUT("/records/:id", handleAPIUpdateRecord)
 		api.DELETE("/records/:id", handleAPIDeleteRecord)
 

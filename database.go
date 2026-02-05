@@ -32,12 +32,13 @@ type DBZone struct {
 
 // DBRecord represents a DNS record in the database
 type DBRecord struct {
-	ID     int64  `json:"id"`
-	ZoneID int64  `json:"zone_id"`
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Value  string `json:"value"`
-	TTL    int    `json:"ttl"`
+	ID       int64  `json:"id"`
+	ZoneID   int64  `json:"zone_id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	TTL      int    `json:"ttl"`
+	Priority int    `json:"priority"`
 }
 
 // DBForwarder represents a forwarder in the database
@@ -69,6 +70,22 @@ func InitDatabase(dbPath string) error {
 		return fmt.Errorf("failed to create tables: %w", err)
 	}
 
+	// Run migrations for existing databases
+	if err := database.runMigrations(); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
+}
+
+// runMigrations applies database migrations for schema changes
+func (d *Database) runMigrations() error {
+	// Add priority column to records table if it doesn't exist
+	_, err := d.db.Exec(`ALTER TABLE records ADD COLUMN priority INTEGER DEFAULT 0`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		// Ignore "duplicate column name" error as it means the column already exists
+		return nil
+	}
 	return nil
 }
 
@@ -97,6 +114,7 @@ func (d *Database) createTables() error {
 		type TEXT NOT NULL,
 		value TEXT NOT NULL,
 		ttl INTEGER DEFAULT 3600,
+		priority INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (zone_id) REFERENCES zones(id) ON DELETE CASCADE
@@ -154,8 +172,8 @@ func (d *Database) CreateZone(zone *DBZone) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// Ensure zone name is FQDN
-	zone.Name = dns.Fqdn(zone.Name)
+	// Ensure zone name does not have trailing dot
+	zone.Name = strings.TrimSuffix(zone.Name, ".")
 
 	result, err := d.db.Exec(`
 		INSERT INTO zones (name, enabled, ttl, ns, admin, serial, refresh, retry, expire)
@@ -191,7 +209,7 @@ func (d *Database) GetZoneByName(name string) (*DBZone, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	name = dns.Fqdn(name)
+	name = strings.TrimSuffix(name, ".")
 	zone := &DBZone{}
 	err := d.db.QueryRow(`
 		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
@@ -235,7 +253,7 @@ func (d *Database) UpdateZone(zone *DBZone) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	zone.Name = dns.Fqdn(zone.Name)
+	zone.Name = strings.TrimSuffix(zone.Name, ".")
 	_, err := d.db.Exec(`
 		UPDATE zones SET name = ?, enabled = ?, ttl = ?, ns = ?, admin = ?, 
 		serial = serial + 1, refresh = ?, retry = ?, expire = ?, updated_at = CURRENT_TIMESTAMP
@@ -261,9 +279,9 @@ func (d *Database) CreateRecord(record *DBRecord) error {
 	defer d.mu.Unlock()
 
 	result, err := d.db.Exec(`
-		INSERT INTO records (zone_id, name, type, value, ttl)
-		VALUES (?, ?, ?, ?, ?)
-	`, record.ZoneID, record.Name, strings.ToUpper(record.Type), record.Value, record.TTL)
+		INSERT INTO records (zone_id, name, type, value, ttl, priority)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, record.ZoneID, record.Name, strings.ToUpper(record.Type), record.Value, record.TTL, record.Priority)
 	if err != nil {
 		return err
 	}
@@ -283,9 +301,9 @@ func (d *Database) GetRecord(id int64) (*DBRecord, error) {
 
 	record := &DBRecord{}
 	err := d.db.QueryRow(`
-		SELECT id, zone_id, name, type, value, ttl
+		SELECT id, zone_id, name, type, value, ttl, priority
 		FROM records WHERE id = ?
-	`, id).Scan(&record.ID, &record.ZoneID, &record.Name, &record.Type, &record.Value, &record.TTL)
+	`, id).Scan(&record.ID, &record.ZoneID, &record.Name, &record.Type, &record.Value, &record.TTL, &record.Priority)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +316,7 @@ func (d *Database) ListRecordsByZone(zoneID int64) ([]DBRecord, error) {
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
-		SELECT id, zone_id, name, type, value, ttl
+		SELECT id, zone_id, name, type, value, ttl, priority
 		FROM records WHERE zone_id = ? ORDER BY type, name
 	`, zoneID)
 	if err != nil {
@@ -309,7 +327,7 @@ func (d *Database) ListRecordsByZone(zoneID int64) ([]DBRecord, error) {
 	var records []DBRecord
 	for rows.Next() {
 		var r DBRecord
-		if err := rows.Scan(&r.ID, &r.ZoneID, &r.Name, &r.Type, &r.Value, &r.TTL); err != nil {
+		if err := rows.Scan(&r.ID, &r.ZoneID, &r.Name, &r.Type, &r.Value, &r.TTL, &r.Priority); err != nil {
 			return nil, err
 		}
 		records = append(records, r)
@@ -323,9 +341,9 @@ func (d *Database) UpdateRecord(record *DBRecord) error {
 	defer d.mu.Unlock()
 
 	_, err := d.db.Exec(`
-		UPDATE records SET name = ?, type = ?, value = ?, ttl = ?, updated_at = CURRENT_TIMESTAMP
+		UPDATE records SET name = ?, type = ?, value = ?, ttl = ?, priority = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, record.Name, strings.ToUpper(record.Type), record.Value, record.TTL, record.ID)
+	`, record.Name, strings.ToUpper(record.Type), record.Value, record.TTL, record.Priority, record.ID)
 	if err != nil {
 		return err
 	}

@@ -251,11 +251,12 @@ type ZoneInfo struct {
 
 // RecordInfo represents a DNS record for the web interface
 type RecordInfo struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Type  string `json:"type"`
-	Value string `json:"value"`
-	TTL   uint32 `json:"ttl"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	TTL      uint32 `json:"ttl"`
+	Priority int    `json:"priority"`
 }
 
 // getZonesInfo returns structured information about loaded zones
@@ -315,11 +316,12 @@ func getZonesInfoFromDB() []ZoneInfo {
 		records, _ := database.ListRecordsByZone(dbZone.ID)
 		for _, r := range records {
 			zi.Records = append(zi.Records, RecordInfo{
-				ID:    r.ID,
-				Name:  r.Name,
-				Type:  r.Type,
-				Value: r.Value,
-				TTL:   uint32(r.TTL),
+				ID:       r.ID,
+				Name:     r.Name,
+				Type:     r.Type,
+				Value:    r.Value,
+				TTL:      uint32(r.TTL),
+				Priority: r.Priority,
 			})
 		}
 
