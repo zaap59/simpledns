@@ -536,15 +536,17 @@ func handleAccount(c *gin.Context) {
 	tokens, _ := ListAPITokens(usernameStr)
 
 	if c.Request.Method == "GET" {
-		tmpl := template.Must(template.New("account").Parse(sidebarHTML + accountHTML))
+		tmpl := template.Must(template.New("account").Parse(headerHTML + sidebarHTML + accountHTML))
 		c.Header("Content-Type", "text/html")
 		if err := tmpl.Execute(c.Writer, gin.H{
-			"Username":    usernameStr,
-			"Mode":        dbMode,
-			"CurrentPath": "/account",
-			"Error":       "",
-			"Success":     "",
-			"APITokens":   tokens,
+			"Username":        usernameStr,
+			"Mode":            dbMode,
+			"CurrentPath":     "/account",
+			"Error":           "",
+			"Success":         "",
+			"APITokens":       tokens,
+			"PageTitle":       "Account",
+			"ShowSetupButton": true,
 		}); err != nil {
 			slog.Error("failed to render account template", "error", err)
 		}
@@ -557,15 +559,17 @@ func handleAccount(c *gin.Context) {
 	confirmPassword := c.PostForm("confirm_password")
 
 	renderError := func(errMsg string) {
-		tmpl := template.Must(template.New("account").Parse(sidebarHTML + accountHTML))
+		tmpl := template.Must(template.New("account").Parse(headerHTML + sidebarHTML + accountHTML))
 		c.Header("Content-Type", "text/html")
 		if err := tmpl.Execute(c.Writer, gin.H{
-			"Username":    usernameStr,
-			"Mode":        dbMode,
-			"CurrentPath": "/account",
-			"Error":       errMsg,
-			"Success":     "",
-			"APITokens":   tokens,
+			"Username":        usernameStr,
+			"Mode":            dbMode,
+			"CurrentPath":     "/account",
+			"Error":           errMsg,
+			"Success":         "",
+			"APITokens":       tokens,
+			"PageTitle":       "Account",
+			"ShowSetupButton": true,
 		}); err != nil {
 			slog.Error("failed to render account template", "error", err)
 		}
@@ -598,15 +602,17 @@ func handleAccount(c *gin.Context) {
 	tokens, _ = ListAPITokens(usernameStr)
 
 	// Success
-	tmpl := template.Must(template.New("account").Parse(sidebarHTML + accountHTML))
+	tmpl := template.Must(template.New("account").Parse(headerHTML + sidebarHTML + accountHTML))
 	c.Header("Content-Type", "text/html")
 	if err := tmpl.Execute(c.Writer, gin.H{
-		"Username":    usernameStr,
-		"Mode":        dbMode,
-		"CurrentPath": "/account",
-		"Error":       "",
-		"Success":     "Password updated successfully",
-		"APITokens":   tokens,
+		"Username":        usernameStr,
+		"Mode":            dbMode,
+		"CurrentPath":     "/account",
+		"Error":           "",
+		"Success":         "Password updated successfully",
+		"APITokens":       tokens,
+		"PageTitle":       "Account",
+		"ShowSetupButton": true,
 	}); err != nil {
 		slog.Error("failed to render account template", "error", err)
 	}
@@ -669,13 +675,15 @@ func handleListAPITokens(c *gin.Context) {
 	}
 
 	// Otherwise render the tokens page
-	tmpl := template.Must(template.New("tokens").Parse(sidebarHTML + apiTokensHTML))
+	tmpl := template.Must(template.New("tokens").Parse(headerHTML + sidebarHTML + apiTokensHTML))
 	c.Header("Content-Type", "text/html")
 	if err := tmpl.Execute(c.Writer, gin.H{
-		"Username":    usernameStr,
-		"Mode":        dbMode,
-		"CurrentPath": "/account/tokens",
-		"APITokens":   tokens,
+		"Username":        usernameStr,
+		"Mode":            dbMode,
+		"CurrentPath":     "/account/tokens",
+		"APITokens":       tokens,
+		"PageTitle":       "API Tokens",
+		"ShowSetupButton": true,
 	}); err != nil {
 		slog.Error("failed to render tokens template", "error", err)
 	}

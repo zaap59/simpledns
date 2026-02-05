@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -343,28 +344,32 @@ func findZoneForRecord(recordName string) string {
 
 // Web handlers
 func handleWebIndex(c *gin.Context) {
-	tmpl := template.Must(template.New("index").Parse(sidebarHTML + indexHTML))
+	tmpl := template.Must(template.New("index").Parse(headerHTML + sidebarHTML + indexHTML))
 	zones := getZonesInfo()
 	totalRecords := 0
 	for _, z := range zones {
 		totalRecords += len(z.Records)
 	}
 	data := struct {
-		Zones       []ZoneInfo
-		ZoneCount   int
-		RecordCount int
-		Mode        string
-		EditMode    bool
-		Forwarders  []string
-		CurrentPath string
+		Zones           []ZoneInfo
+		ZoneCount       int
+		RecordCount     int
+		Mode            string
+		EditMode        bool
+		Forwarders      []string
+		CurrentPath     string
+		PageTitle       string
+		ShowSetupButton bool
 	}{
-		Zones:       zones,
-		ZoneCount:   len(zones),
-		RecordCount: totalRecords,
-		Mode:        dbMode,
-		EditMode:    dbMode == "sqlite",
-		Forwarders:  forwarders,
-		CurrentPath: "/",
+		Zones:           zones,
+		ZoneCount:       len(zones),
+		RecordCount:     totalRecords,
+		Mode:            dbMode,
+		EditMode:        dbMode == "sqlite",
+		Forwarders:      forwarders,
+		CurrentPath:     "/",
+		PageTitle:       "Dashboard",
+		ShowSetupButton: true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -452,17 +457,21 @@ func handleWebZoneSettings(c *gin.Context) {
 }
 
 func handleWebSettings(c *gin.Context) {
-	tmpl := template.Must(template.New("settings").Parse(sidebarHTML + globalSettingsHTML))
+	tmpl := template.Must(template.New("settings").Parse(headerHTML + sidebarHTML + globalSettingsHTML))
 	data := struct {
-		Mode        string
-		EditMode    bool
-		Forwarders  []string
-		CurrentPath string
+		Mode            string
+		EditMode        bool
+		Forwarders      []string
+		CurrentPath     string
+		PageTitle       string
+		ShowSetupButton bool
 	}{
-		Mode:        dbMode,
-		EditMode:    dbMode == "sqlite",
-		Forwarders:  forwarders,
-		CurrentPath: "/settings",
+		Mode:            dbMode,
+		EditMode:        dbMode == "sqlite",
+		Forwarders:      forwarders,
+		CurrentPath:     "/settings",
+		PageTitle:       "Settings",
+		ShowSetupButton: true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -482,6 +491,34 @@ func handleAPIHealth(c *gin.Context) {
 		"zones":      len(loadedZoneNames),
 		"forwarders": len(forwarders),
 	})
+}
+
+// handleAPIServerInfo returns server information including IP address
+func handleAPIServerInfo(c *gin.Context) {
+	// Try to get the server's IP from the request
+	serverIP := c.Request.Host
+	// Remove port if present
+	if idx := strings.LastIndex(serverIP, ":"); idx != -1 {
+		serverIP = serverIP[:idx]
+	}
+	// If it's localhost, try to get a better IP
+	if serverIP == "localhost" || serverIP == "127.0.0.1" {
+		serverIP = getOutboundIP()
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ip": serverIP,
+	})
+}
+
+// getOutboundIP gets the preferred outbound IP of this machine
+func getOutboundIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer func() { _ = conn.Close() }()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
 }
 
 // startWebServer starts the web interface server using Gin
@@ -511,6 +548,7 @@ func startWebServer(port int) *http.Server {
 		protected.GET("/account/tokens", handleListAPITokens)
 		protected.GET("/zones/:zone/records", handleWebZoneRecords)
 		protected.GET("/zones/:zone/settings", handleWebZoneSettings)
+		protected.GET("/api/server-info", handleAPIServerInfo)
 	}
 
 	// Register CRUD routes only in sqlite mode, otherwise just read-only zones

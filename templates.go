@@ -36,6 +36,46 @@ const headHTML = `
     <script>if (localStorage.getItem('darkMode') === 'true') { document.documentElement.classList.add('dark'); }</script>
 `
 
+// Header template - PageTitle determines the page title, ShowSetupButton shows setup button
+const headerHTML = `{{define "header"}}
+            <!-- Header -->
+            <header class="sticky top-0 z-30 flex w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+                <div class="flex flex-grow items-center justify-between px-4 py-4 md:px-6">
+                    <div class="flex items-center gap-4">
+                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                            </svg>
+                        </button>
+                        {{block "headerContent" .}}<h1 class="text-xl font-semibold">{{.PageTitle}}</h1>{{end}}
+                    </div>
+                    <div class="flex items-center gap-3">
+                        {{if .ShowSetupButton}}
+                        <button onclick="showConfigModal()" class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 border border-brand-600 dark:border-brand-400 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Setup me!
+                        </button>
+                        {{end}}
+                        <button @click="darkMode = !darkMode" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
+                            <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                            </svg>
+                            <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                        </button>
+                        <a href="/logout" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white" title="Logout">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </header>
+{{end}}`
+
 // Sidebar template - CurrentPath determines active link
 const sidebarHTML = `{{define "sidebar"}}
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
@@ -130,34 +170,7 @@ const indexHTML = `<!DOCTYPE html>
             <div x-show="sidebarOpen" @click="sidebarOpen = false" 
                  class="fixed inset-0 z-40 bg-black/50 lg:hidden" x-cloak></div>
 
-            <!-- Header -->
-            <header class="sticky top-0 z-30 flex w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div class="flex flex-grow items-center justify-between px-4 py-4 md:px-6">
-                    <div class="flex items-center gap-4">
-                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                            </svg>
-                        </button>
-                        <h1 class="text-xl font-semibold">Dashboard</h1>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button @click="darkMode = !darkMode" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                            </svg>
-                            <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                            </svg>
-                        </button>
-                        <a href="/logout" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white" title="Logout">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                            </svg>
-                        </a>
-                    </div>
-                </div>
-            </header>
+            {{template "header" .}}
 
             <!-- Main Content -->
             <main class="p-4 md:p-6 2xl:p-10">
@@ -306,7 +319,136 @@ const indexHTML = `<!DOCTYPE html>
     </div>
     {{end}}
 
+    <!-- Configuration Modal -->
+    <div id="configModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">DNS Server Configuration</h2>
+                <button onclick="hideConfigModal()" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div class="p-4 bg-brand-50 dark:bg-brand-950 rounded-xl border border-brand-200 dark:border-brand-700">
+                    <p class="text-sm text-brand-700 dark:text-brand-200 mb-2">Configure your devices to use this DNS server:</p>
+                    <div class="flex items-center gap-3">
+                        <code id="serverIP" class="flex-1 px-4 py-3 bg-white dark:bg-gray-800 rounded-lg font-mono text-lg font-bold text-center">Loading...</code>
+                        <button onclick="copyServerIP()" class="p-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors" title="Copy to clipboard">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <h3 class="font-semibold text-sm text-gray-600 dark:text-gray-400 uppercase tracking-wide">Configuration Instructions</h3>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🐧 Linux</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Edit <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">/etc/resolv.conf</code>:</p>
+                            <pre class="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-x-auto"><code>nameserver <span class="config-ip">SERVER_IP</span></code></pre>
+                            <p>Or use NetworkManager/systemd-resolved for persistent configuration.</p>
+                        </div>
+                    </details>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🍎 macOS</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>System Preferences → Network → Advanced → DNS</p>
+                            <p>Add <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code> as DNS server.</p>
+                        </div>
+                    </details>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🪟 Windows</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Control Panel → Network → Change adapter settings</p>
+                            <p>Right-click adapter → Properties → IPv4 → Use the following DNS server:</p>
+                            <p>Enter <code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code></p>
+                        </div>
+                    </details>
+                    
+                    <details class="group border border-gray-200 dark:border-gray-800 rounded-xl">
+                        <summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl">
+                            <span class="font-medium">🌐 Router (Recommended)</span>
+                            <svg class="w-5 h-5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        <div class="px-4 pb-4 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                            <p>Access your router's admin panel and set the DNS server to:</p>
+                            <p><code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded config-ip">SERVER_IP</code></p>
+                            <p class="text-green-600 dark:text-green-400">✓ This will apply to all devices on your network.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button onclick="hideConfigModal()" class="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">Got it</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Configuration modal
+        let serverIPValue = '';
+        
+        function showConfigModal() {
+            document.getElementById('configModal').classList.remove('hidden');
+            document.getElementById('configModal').classList.add('flex');
+            // Fetch server IP
+            fetch('/api/server-info')
+                .then(r => r.json())
+                .then(data => {
+                    serverIPValue = data.ip || window.location.hostname;
+                    document.getElementById('serverIP').textContent = serverIPValue;
+                    // Update all IP placeholders
+                    document.querySelectorAll('.config-ip').forEach(el => {
+                        el.textContent = serverIPValue;
+                    });
+                })
+                .catch(() => {
+                    serverIPValue = window.location.hostname;
+                    document.getElementById('serverIP').textContent = serverIPValue;
+                    document.querySelectorAll('.config-ip').forEach(el => {
+                        el.textContent = serverIPValue;
+                    });
+                });
+        }
+        
+        function hideConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+            document.getElementById('configModal').classList.remove('flex');
+        }
+        
+        function copyServerIP() {
+            navigator.clipboard.writeText(serverIPValue).then(() => {
+                const btn = event.currentTarget;
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+                setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
+            });
+        }
+        
         function showAddZoneModal() {
             document.getElementById('addZoneModal').classList.remove('hidden');
             document.getElementById('addZoneModal').classList.add('flex');
@@ -954,34 +1096,7 @@ const globalSettingsHTML = `<!DOCTYPE html>
             <div x-show="sidebarOpen" @click="sidebarOpen = false" 
                  class="fixed inset-0 z-40 bg-black/50 lg:hidden" x-cloak></div>
 
-            <!-- Header -->
-            <header class="sticky top-0 z-30 flex w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div class="flex flex-grow items-center justify-between px-4 py-4 md:px-6">
-                    <div class="flex items-center gap-4">
-                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                            </svg>
-                        </button>
-                        <h1 class="text-xl font-semibold">Settings</h1>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button @click="darkMode = !darkMode" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                            </svg>
-                            <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                            </svg>
-                        </button>
-                        <a href="/logout" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white" title="Logout">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                            </svg>
-                        </a>
-                    </div>
-                </div>
-            </header>
+            {{template "header" .}}
 
             <!-- Main Content -->
             <main class="p-4 md:p-6 2xl:p-10">
@@ -1042,7 +1157,18 @@ const globalSettingsHTML = `<!DOCTYPE html>
                         <h3 class="text-lg font-semibold">Server Information</h3>
                     </div>
                     <div class="p-5">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Server IP Address</label>
+                                <div class="flex items-center gap-2">
+                                    <p class="text-lg font-mono" id="serverIP">Loading...</p>
+                                    <button onclick="copyServerIP()" class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-white/5" title="Copy IP">
+                                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Mode</label>
                                 <p class="text-lg font-mono">{{.Mode}}</p>
@@ -1052,8 +1178,31 @@ const globalSettingsHTML = `<!DOCTYPE html>
                                 <p class="text-lg">{{len .Forwarders}}</p>
                             </div>
                         </div>
+                        <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-lg">
+                            <h4 class="font-medium text-blue-800 dark:text-blue-200 mb-2">💡 How to use this DNS server</h4>
+                            <p class="text-sm text-blue-700 dark:text-blue-300">Configure your devices or network to use the Server IP Address shown above as your DNS server (port 53).</p>
+                        </div>
                     </div>
                 </div>
+
+                <script>
+                    // Fetch and display server IP
+                    fetch('/api/server-info')
+                        .then(r => r.json())
+                        .then(data => {
+                            document.getElementById('serverIP').textContent = data.ip || 'Unknown';
+                        })
+                        .catch(() => {
+                            document.getElementById('serverIP').textContent = 'Error loading';
+                        });
+                    
+                    function copyServerIP() {
+                        const ip = document.getElementById('serverIP').textContent;
+                        navigator.clipboard.writeText(ip).then(() => {
+                            alert('IP copied: ' + ip);
+                        });
+                    }
+                </script>
             </main>
         </div>
     </div>
@@ -1225,34 +1374,7 @@ const accountHTML = `<!DOCTYPE html>
             <div x-show="sidebarOpen" @click="sidebarOpen = false" 
                  class="fixed inset-0 z-40 bg-black/50 lg:hidden" x-cloak></div>
 
-            <!-- Header -->
-            <header class="sticky top-0 z-30 flex w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div class="flex flex-grow items-center justify-between px-4 py-4 md:px-6">
-                    <div class="flex items-center gap-4">
-                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                            </svg>
-                        </button>
-                        <h1 class="text-xl font-semibold">Account</h1>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button @click="darkMode = !darkMode" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                            </svg>
-                            <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                            </svg>
-                        </button>
-                        <a href="/logout" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white" title="Logout">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                            </svg>
-                        </a>
-                    </div>
-                </div>
-            </header>
+            {{template "header" .}}
 
             <!-- Main Content -->
             <main class="p-4 md:p-6 2xl:p-10">
@@ -1371,34 +1493,7 @@ const apiTokensHTML = `<!DOCTYPE html>
             <div x-show="sidebarOpen" @click="sidebarOpen = false" 
                  class="fixed inset-0 z-40 bg-black/50 lg:hidden" x-cloak></div>
 
-            <!-- Header -->
-            <header class="sticky top-0 z-30 flex w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div class="flex flex-grow items-center justify-between px-4 py-4 md:px-6">
-                    <div class="flex items-center gap-4">
-                        <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                            </svg>
-                        </button>
-                        <h1 class="text-xl font-semibold">API Tokens</h1>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button @click="darkMode = !darkMode" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
-                            <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                            </svg>
-                            <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" x-cloak>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                            </svg>
-                        </button>
-                        <a href="/logout" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white" title="Logout">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                            </svg>
-                        </a>
-                    </div>
-                </div>
-            </header>
+            {{template "header" .}}
 
             <!-- Main Content -->
             <main class="p-4 md:p-6 2xl:p-10">
