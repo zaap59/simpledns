@@ -33,7 +33,7 @@ jobs:
         run: go fmt ./...
       
       - name: Build binary
-        run: go build -o simpledns main.go
+        run: go build -o simpledns
       
       - name: Verify binary
         run: |
@@ -64,7 +64,7 @@ jobs:
       
       - name: Build for ${{ matrix.goos }}/${{ matrix.goarch }}
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o simpledns-${{ matrix.goos }}-${{ matrix.goarch }} main.go
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o simpledns-${{ matrix.goos }}-${{ matrix.goarch }}
           ls -lh simpledns-*
         shell: bash
       
