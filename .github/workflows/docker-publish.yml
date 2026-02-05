@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - main
   pull_request:
     branches:
       - main
@@ -35,6 +37,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,event=pr
+            type=edge,branch=main
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'

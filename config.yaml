@@ -1,5 +1,15 @@
+# Database mode: "files" (default) or "sqlite"
+# - files: reads zones from YAML files in zones_dir (read-only via API)
+# - sqlite: stores everything in SQLite database (full CRUD via API)
+db_type: sqlite
+db_path: simpledns.db
+
 zones_dir: zones
 forwarders:
   - 1.1.1.1
   - 1.0.0.1
 forward_timeout_seconds: 2
+
+# Web interface configuration
+web_enabled: true
+web_port: 8080

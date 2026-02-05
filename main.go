@@ -4,8 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/miekg/dns"
 	"gopkg.in/yaml.v3"
 )
@@ -22,6 +26,7 @@ var zones map[string][]dns.RR
 var forwarders []string
 var forwardTimeout time.Duration = 2 * time.Second
 var loadedZoneNames []string
+var dbMode string = "files" // "files" or "sqlite"
 
 // flag types that track whether they were set on the command line
 type stringFlag struct {
@@ -58,10 +63,14 @@ type YAMLZoneConfig struct {
 // debug can be enabled via the CLI flag `-debug`
 
 type AppConfig struct {
+	DBType            string   `yaml:"db_type" json:"db_type,omitempty"`
+	DBPath            string   `yaml:"db_path" json:"db_path,omitempty"`
 	ZonesDir          string   `yaml:"zones_dir" json:"zones_dir,omitempty"`
-	Forwarders        []string `json:"forwarders,omitempty"`
-	ForwardTimeoutSec int      `json:"forward_timeout_seconds,omitempty"`
-	Addr              string   `json:"addr,omitempty"`
+	Forwarders        []string `yaml:"forwarders" json:"forwarders,omitempty"`
+	ForwardTimeoutSec int      `yaml:"forward_timeout_seconds" json:"forward_timeout_seconds,omitempty"`
+	Addr              string   `yaml:"addr" json:"addr,omitempty"`
+	WebEnabled        bool     `yaml:"web_enabled" json:"web_enabled,omitempty"`
+	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
 }
 
 func loadAppConfig(path string) (*AppConfig, error) {
@@ -233,6 +242,346 @@ func initZones(confDir string) {
 	}
 }
 
+// ZoneInfo represents zone information for the web interface
+type ZoneInfo struct {
+	ID      int64        `json:"id"`
+	Name    string       `json:"name"`
+	Enabled bool         `json:"enabled"`
+	Records []RecordInfo `json:"records"`
+}
+
+// RecordInfo represents a DNS record for the web interface
+type RecordInfo struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Value    string `json:"value"`
+	TTL      uint32 `json:"ttl"`
+	Priority int    `json:"priority"`
+}
+
+// getZonesInfo returns structured information about loaded zones
+func getZonesInfo() []ZoneInfo {
+	// In SQLite mode, get zones with their IDs from database
+	if dbMode == "sqlite" && database != nil {
+		return getZonesInfoFromDB()
+	}
+
+	// In files mode, build from in-memory zones
+	zoneMap := make(map[string]*ZoneInfo)
+
+	for name, rrList := range zones {
+		for _, rr := range rrList {
+			zoneName := findZoneForRecord(name)
+			if zoneName == "" {
+				zoneName = name
+			}
+
+			if _, exists := zoneMap[zoneName]; !exists {
+				zoneMap[zoneName] = &ZoneInfo{Name: strings.TrimSuffix(zoneName, "."), Enabled: true, Records: []RecordInfo{}}
+			}
+
+			record := RecordInfo{
+				Name:  rr.Header().Name,
+				Type:  dns.TypeToString[rr.Header().Rrtype],
+				TTL:   rr.Header().Ttl,
+				Value: strings.TrimPrefix(rr.String(), rr.Header().String()),
+			}
+			zoneMap[zoneName].Records = append(zoneMap[zoneName].Records, record)
+		}
+	}
+
+	result := make([]ZoneInfo, 0, len(zoneMap))
+	for _, zi := range zoneMap {
+		result = append(result, *zi)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
+// getZonesInfoFromDB returns zone info from SQLite database with IDs
+func getZonesInfoFromDB() []ZoneInfo {
+	dbZones, err := database.ListZones()
+	if err != nil {
+		return nil
+	}
+
+	result := make([]ZoneInfo, 0, len(dbZones))
+	for _, dbZone := range dbZones {
+		zi := ZoneInfo{
+			ID:      dbZone.ID,
+			Name:    strings.TrimSuffix(dbZone.Name, "."),
+			Enabled: dbZone.Enabled,
+		}
+
+		records, _ := database.ListRecordsByZone(dbZone.ID)
+		for _, r := range records {
+			zi.Records = append(zi.Records, RecordInfo{
+				ID:       r.ID,
+				Name:     r.Name,
+				Type:     r.Type,
+				Value:    r.Value,
+				TTL:      uint32(r.TTL),
+				Priority: r.Priority,
+			})
+		}
+
+		result = append(result, zi)
+	}
+
+	return result
+}
+
+// findZoneForRecord finds the zone name for a given record
+func findZoneForRecord(recordName string) string {
+	for _, zoneName := range loadedZoneNames {
+		if strings.HasSuffix(recordName, zoneName) || recordName == zoneName {
+			return zoneName
+		}
+	}
+	return ""
+}
+
+// Web handlers
+func handleWebIndex(c *gin.Context) {
+	tmpl := template.Must(template.New("index").Parse(headerHTML + sidebarHTML + indexHTML))
+	zones := getZonesInfo()
+	totalRecords := 0
+	for _, z := range zones {
+		totalRecords += len(z.Records)
+	}
+	data := struct {
+		Zones           []ZoneInfo
+		ZoneCount       int
+		RecordCount     int
+		Mode            string
+		EditMode        bool
+		Forwarders      []string
+		CurrentPath     string
+		PageTitle       string
+		ShowSetupButton bool
+	}{
+		Zones:           zones,
+		ZoneCount:       len(zones),
+		RecordCount:     totalRecords,
+		Mode:            dbMode,
+		EditMode:        dbMode == "sqlite",
+		Forwarders:      forwarders,
+		CurrentPath:     "/",
+		PageTitle:       "Dashboard",
+		ShowSetupButton: true,
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleWebZoneRecords(c *gin.Context) {
+	zoneName := c.Param("zone")
+
+	// Find the zone
+	zones := getZonesInfo()
+	var zone *ZoneInfo
+	for i := range zones {
+		if zones[i].Name == zoneName {
+			zone = &zones[i]
+			break
+		}
+	}
+
+	if zone == nil {
+		c.String(http.StatusNotFound, "Zone not found")
+		return
+	}
+
+	tmpl := template.Must(template.New("zone_records").Parse(sidebarHTML + zoneRecordsHTML))
+	data := struct {
+		Zone        *ZoneInfo
+		AllZones    []ZoneInfo
+		Mode        string
+		EditMode    bool
+		CurrentPath string
+	}{
+		Zone:        zone,
+		AllZones:    zones,
+		Mode:        dbMode,
+		EditMode:    dbMode == "sqlite",
+		CurrentPath: "/zones",
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleWebZoneSettings(c *gin.Context) {
+	zoneName := c.Param("zone")
+
+	// Find the zone
+	zones := getZonesInfo()
+	var zone *ZoneInfo
+	for i := range zones {
+		if zones[i].Name == zoneName {
+			zone = &zones[i]
+			break
+		}
+	}
+
+	if zone == nil {
+		c.String(http.StatusNotFound, "Zone not found")
+		return
+	}
+
+	tmpl := template.Must(template.New("zone_settings").Parse(sidebarHTML + zoneSettingsHTML))
+	data := struct {
+		Zone        *ZoneInfo
+		AllZones    []ZoneInfo
+		Mode        string
+		EditMode    bool
+		CurrentPath string
+	}{
+		Zone:        zone,
+		AllZones:    zones,
+		Mode:        dbMode,
+		EditMode:    dbMode == "sqlite",
+		CurrentPath: "/zones",
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleWebSettings(c *gin.Context) {
+	tmpl := template.Must(template.New("settings").Parse(headerHTML + sidebarHTML + globalSettingsHTML))
+	data := struct {
+		Mode            string
+		EditMode        bool
+		Forwarders      []string
+		CurrentPath     string
+		PageTitle       string
+		ShowSetupButton bool
+	}{
+		Mode:            dbMode,
+		EditMode:        dbMode == "sqlite",
+		Forwarders:      forwarders,
+		CurrentPath:     "/settings",
+		PageTitle:       "Settings",
+		ShowSetupButton: true,
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleAPIZones(c *gin.Context) {
+	c.JSON(http.StatusOK, getZonesInfo())
+}
+
+func handleAPIHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":     "ok",
+		"mode":       dbMode,
+		"zones":      len(loadedZoneNames),
+		"forwarders": len(forwarders),
+	})
+}
+
+// handleConfigModalJS serves the config modal JavaScript
+func handleConfigModalJS(c *gin.Context) {
+	c.Header("Content-Type", "application/javascript")
+	c.String(http.StatusOK, configModalJS)
+}
+
+// handleAPIServerInfo returns server information including IP address
+func handleAPIServerInfo(c *gin.Context) {
+	// Try to get the server's IP from the request
+	serverIP := c.Request.Host
+	// Remove port if present
+	if idx := strings.LastIndex(serverIP, ":"); idx != -1 {
+		serverIP = serverIP[:idx]
+	}
+	// If it's localhost, try to get a better IP
+	if serverIP == "localhost" || serverIP == "127.0.0.1" {
+		serverIP = getOutboundIP()
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"ip": serverIP,
+	})
+}
+
+// getOutboundIP gets the preferred outbound IP of this machine
+func getOutboundIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer func() { _ = conn.Close() }()
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String()
+}
+
+// startWebServer starts the web interface server using Gin
+func startWebServer(port int) *http.Server {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+
+	// Static files (no auth required)
+	router.GET("/static/config-modal.js", handleConfigModalJS)
+
+	// Public routes (no auth required)
+	router.GET("/login", handleLogin)
+	router.POST("/login", handleLogin)
+	router.GET("/setup", handleSetup)
+	router.POST("/setup", handleSetup)
+	router.GET("/logout", handleLogout)
+	router.GET("/api/health", handleAPIHealth)
+
+	// Protected routes (auth required)
+	protected := router.Group("/")
+	protected.Use(AuthMiddleware())
+	{
+		protected.GET("/", handleWebIndex)
+		protected.GET("/settings", handleWebSettings)
+		protected.GET("/account", handleAccount)
+		protected.POST("/account", handleAccount)
+		protected.POST("/account/tokens", handleCreateAPIToken)
+		protected.DELETE("/account/tokens/:id", handleDeleteAPIToken)
+		protected.GET("/account/tokens", handleListAPITokens)
+		protected.GET("/zones/:zone/records", handleWebZoneRecords)
+		protected.GET("/zones/:zone/settings", handleWebZoneSettings)
+		protected.GET("/api/server-info", handleAPIServerInfo)
+	}
+
+	// Register CRUD routes only in sqlite mode, otherwise just read-only zones
+	if dbMode == "sqlite" {
+		registerAPIRoutes(router)
+	} else {
+		router.GET("/api/zones", handleAPIZones)
+	}
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: router,
+	}
+
+	go func() {
+		slog.Info("Starting web server", "addr", server.Addr, "mode", dbMode)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("failed to start web server", "error", err)
+		}
+	}()
+
+	return server
+}
+
 func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
@@ -253,9 +602,22 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 	q := r.Question[0]
 	name := q.Name
 	qtype := q.Qtype
-
 	t := dns.TypeToString[qtype]
-	slog.Debug("Received query", "client", w.RemoteAddr(), "name", name, "type", t)
+
+	// Check if this query matches a loaded zone (log INFO for local, DEBUG for forwarded)
+	isLocalZone := false
+	for _, zoneName := range loadedZoneNames {
+		if strings.HasSuffix(name, zoneName) || name == zoneName {
+			isLocalZone = true
+			break
+		}
+	}
+
+	if isLocalZone {
+		slog.Info("Received query", "client", w.RemoteAddr(), "name", name, "type", t)
+	} else {
+		slog.Debug("Received query", "client", w.RemoteAddr(), "name", name, "type", t)
+	}
 
 	answers := []dns.RR{}
 	if rrlist, ok := zones[name]; ok {
@@ -290,18 +652,18 @@ func handleDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		m.Rcode = dns.RcodeNameError // NXDOMAIN
 		if err := w.WriteMsg(m); err != nil {
-			slog.Debug("Failed to send NXDOMAIN", "name", name, "client", w.RemoteAddr(), "error", err)
+			slog.Warn("Failed to send NXDOMAIN", "name", name, "client", w.RemoteAddr(), "error", err)
 		} else {
-			slog.Debug("Sent NXDOMAIN", "name", name, "client", w.RemoteAddr())
+			slog.Info("Sent NXDOMAIN", "name", name, "client", w.RemoteAddr())
 		}
 		return
 	}
 
 	m.Answer = append(m.Answer, answers...)
 	if err := w.WriteMsg(m); err != nil {
-		slog.Debug("Failed to send reply", "name", name, "client", w.RemoteAddr(), "error", err)
+		slog.Warn("Failed to send reply", "name", name, "client", w.RemoteAddr(), "error", err)
 	} else {
-		slog.Debug("Replied", "name", name, "client", w.RemoteAddr(), "answers", len(m.Answer))
+		slog.Info("Replied", "name", name, "client", w.RemoteAddr(), "answers", len(m.Answer))
 	}
 }
 
@@ -342,8 +704,21 @@ func main() {
 
 	slog.Info("Starting simple DNS server")
 
+	// Web server config (defaults)
+	webEnabled := false
+	webPort := 8080
+	dbPath := "simpledns.db"
+
 	// Load optional app config file if present
 	if cfgApp, err := loadAppConfig(configFileFlag.value); err == nil {
+		// Set db_type mode (files or sqlite)
+		if cfgApp.DBType != "" {
+			dbMode = cfgApp.DBType
+		}
+		if cfgApp.DBPath != "" {
+			dbPath = cfgApp.DBPath
+		}
+
 		if !zonesDirFlag.set && cfgApp.ZonesDir != "" {
 			zonesDirFlag.value = cfgApp.ZonesDir
 		}
@@ -363,19 +738,38 @@ func main() {
 		if cfgApp.ForwardTimeoutSec > 0 {
 			forwardTimeout = time.Duration(cfgApp.ForwardTimeoutSec) * time.Second
 		}
+		// Web server config
+		webEnabled = cfgApp.WebEnabled
+		if cfgApp.WebPort > 0 {
+			webPort = cfgApp.WebPort
+		}
 	}
 
 	// CLI flags override config
 	if forwardersFlag.set {
 		forwarders = parseForwarders(forwardersFlag.value)
 	}
-	// debug can be enabled with the -debug flag
 
 	if forwarders == nil {
 		forwarders = []string{}
 	}
 
-	initZones(zonesDirFlag.value)
+	// Initialize based on db_type mode
+	if dbMode == "sqlite" {
+		slog.Info("Running in SQLite mode", "db_path", dbPath)
+		if err := InitDatabase(dbPath); err != nil {
+			slog.Error("failed to initialize database", "error", err)
+			os.Exit(1)
+		}
+		// Load zones and forwarders from database
+		if err := ReloadFromDB(); err != nil {
+			slog.Warn("failed to load from database", "error", err)
+		}
+	} else {
+		slog.Info("Running in files mode", "zones_dir", zonesDirFlag.value)
+		initZones(zonesDirFlag.value)
+	}
+
 	// Always log the effective configuration and loaded zone names at startup
 	uniq := make(map[string]struct{}, len(loadedZoneNames))
 	for _, z := range loadedZoneNames {
@@ -389,17 +783,23 @@ func main() {
 		zoneNames = append(zoneNames, z)
 	}
 	sort.Strings(zoneNames)
-	slog.Info("Config initialized", "zones_dir", zonesDirFlag.value, "forwarders", len(forwarders), "forward_timeout", forwardTimeout, "loaded_zones", len(zoneNames))
+	slog.Info("Config initialized", "mode", dbMode, "forwarders", len(forwarders), "forward_timeout", forwardTimeout, "loaded_zones", len(zoneNames))
 	if len(zoneNames) > 0 {
 		slog.Info("Loaded zones", "zones", zoneNames)
 	} else {
-		slog.Warn("No zones loaded")
+		slog.Info("No zones loaded - use API to add zones")
 	}
 
 	dns.HandleFunc(".", handleDNS)
 
 	udpServer := &dns.Server{Addr: ":53", Net: "udp"}
 	tcpServer := &dns.Server{Addr: ":53", Net: "tcp"}
+
+	// Start web server if enabled
+	var webServer *http.Server
+	if webEnabled {
+		webServer = startWebServer(webPort)
+	}
 
 	// Run servers in goroutines
 	go func() {
@@ -428,5 +828,11 @@ func main() {
 	defer cancel()
 	_ = udpServer.ShutdownContext(ctx)
 	_ = tcpServer.ShutdownContext(ctx)
+	if webServer != nil {
+		_ = webServer.Shutdown(ctx)
+	}
+	if database != nil {
+		_ = database.Close()
+	}
 	slog.Info("Servers stopped")
 }
