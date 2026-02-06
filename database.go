@@ -28,6 +28,7 @@ type DBZone struct {
 	Refresh int    `json:"refresh"`
 	Retry   int    `json:"retry"`
 	Expire  int    `json:"expire"`
+	Version int    `json:"version"`
 }
 
 // DBRecord represents a DNS record in the database
@@ -52,6 +53,18 @@ type DBForwarder struct {
 type DBConfig struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+// DBSlave represents a registered slave server
+type DBSlave struct {
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	IPAddress       string `json:"ip_address"`
+	LastSyncAt      string `json:"last_sync_at,omitempty"`
+	LastHeartbeatAt string `json:"last_heartbeat_at,omitempty"`
+	Status          string `json:"status"`
+	ZonesSynced     int    `json:"zones_synced"`
+	CreatedAt       string `json:"created_at"`
 }
 
 var database *Database
@@ -86,6 +99,13 @@ func (d *Database) runMigrations() error {
 		// Ignore "duplicate column name" error as it means the column already exists
 		return nil
 	}
+
+	// Add version column to zones table if it doesn't exist
+	_, err = d.db.Exec(`ALTER TABLE zones ADD COLUMN version INTEGER DEFAULT 1`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return nil
+	}
+
 	return nil
 }
 
@@ -103,6 +123,7 @@ func (d *Database) createTables() error {
 		refresh INTEGER DEFAULT 3600,
 		retry INTEGER DEFAULT 600,
 		expire INTEGER DEFAULT 86400,
+		version INTEGER DEFAULT 1,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -151,6 +172,17 @@ func (d *Database) createTables() error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);
 
+	CREATE TABLE IF NOT EXISTS slaves (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		ip_address TEXT NOT NULL,
+		last_sync_at DATETIME,
+		last_heartbeat_at DATETIME,
+		status TEXT DEFAULT 'pending',
+		zones_synced INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_records_zone_id ON records(zone_id);
 	CREATE INDEX IF NOT EXISTS idx_records_name ON records(name);
 	CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash);
@@ -176,14 +208,15 @@ func (d *Database) CreateZone(zone *DBZone) error {
 	zone.Name = strings.TrimSuffix(zone.Name, ".")
 
 	result, err := d.db.Exec(`
-		INSERT INTO zones (name, enabled, ttl, ns, admin, serial, refresh, retry, expire)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO zones (name, enabled, ttl, ns, admin, serial, refresh, retry, expire, version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 	`, zone.Name, zone.Enabled, zone.TTL, zone.NS, zone.Admin, zone.Serial, zone.Refresh, zone.Retry, zone.Expire)
 	if err != nil {
 		return err
 	}
 
 	zone.ID, _ = result.LastInsertId()
+	zone.Version = 1
 	return nil
 }
 
@@ -194,10 +227,10 @@ func (d *Database) GetZone(id int64) (*DBZone, error) {
 
 	zone := &DBZone{}
 	err := d.db.QueryRow(`
-		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
+		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire, COALESCE(version, 1)
 		FROM zones WHERE id = ?
 	`, id).Scan(&zone.ID, &zone.Name, &zone.Enabled, &zone.TTL, &zone.NS, &zone.Admin,
-		&zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire)
+		&zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -212,10 +245,10 @@ func (d *Database) GetZoneByName(name string) (*DBZone, error) {
 	name = strings.TrimSuffix(name, ".")
 	zone := &DBZone{}
 	err := d.db.QueryRow(`
-		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
+		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire, COALESCE(version, 1)
 		FROM zones WHERE name = ?
 	`, name).Scan(&zone.ID, &zone.Name, &zone.Enabled, &zone.TTL, &zone.NS, &zone.Admin,
-		&zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire)
+		&zone.Serial, &zone.Refresh, &zone.Retry, &zone.Expire, &zone.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +261,7 @@ func (d *Database) ListZones() ([]DBZone, error) {
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
-		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire
+		SELECT id, name, enabled, ttl, ns, admin, serial, refresh, retry, expire, COALESCE(version, 1)
 		FROM zones ORDER BY name
 	`)
 	if err != nil {
@@ -240,7 +273,7 @@ func (d *Database) ListZones() ([]DBZone, error) {
 	for rows.Next() {
 		var z DBZone
 		if err := rows.Scan(&z.ID, &z.Name, &z.Enabled, &z.TTL, &z.NS, &z.Admin,
-			&z.Serial, &z.Refresh, &z.Retry, &z.Expire); err != nil {
+			&z.Serial, &z.Refresh, &z.Retry, &z.Expire, &z.Version); err != nil {
 			return nil, err
 		}
 		zones = append(zones, z)
@@ -256,7 +289,7 @@ func (d *Database) UpdateZone(zone *DBZone) error {
 	zone.Name = strings.TrimSuffix(zone.Name, ".")
 	_, err := d.db.Exec(`
 		UPDATE zones SET name = ?, enabled = ?, ttl = ?, ns = ?, admin = ?, 
-		serial = serial + 1, refresh = ?, retry = ?, expire = ?, updated_at = CURRENT_TIMESTAMP
+		serial = serial + 1, refresh = ?, retry = ?, expire = ?, version = COALESCE(version, 0) + 1, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`, zone.Name, zone.Enabled, zone.TTL, zone.NS, zone.Admin, zone.Refresh, zone.Retry, zone.Expire, zone.ID)
 	return err
@@ -288,8 +321,8 @@ func (d *Database) CreateRecord(record *DBRecord) error {
 
 	record.ID, _ = result.LastInsertId()
 
-	// Update zone serial
-	_, _ = d.db.Exec(`UPDATE zones SET serial = serial + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, record.ZoneID)
+	// Update zone serial and version
+	_, _ = d.db.Exec(`UPDATE zones SET serial = serial + 1, version = COALESCE(version, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, record.ZoneID)
 
 	return nil
 }
@@ -348,8 +381,8 @@ func (d *Database) UpdateRecord(record *DBRecord) error {
 		return err
 	}
 
-	// Update zone serial
-	_, _ = d.db.Exec(`UPDATE zones SET serial = serial + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, record.ZoneID)
+	// Update zone serial and version
+	_, _ = d.db.Exec(`UPDATE zones SET serial = serial + 1, version = COALESCE(version, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, record.ZoneID)
 
 	return err
 }
@@ -368,9 +401,9 @@ func (d *Database) DeleteRecord(id int64) error {
 		return err
 	}
 
-	// Update zone serial
+	// Update zone serial and version
 	if zoneID > 0 {
-		_, _ = d.db.Exec(`UPDATE zones SET serial = serial + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, zoneID)
+		_, _ = d.db.Exec(`UPDATE zones SET serial = serial + 1, version = COALESCE(version, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, zoneID)
 	}
 
 	return nil
@@ -579,4 +612,137 @@ func ReloadFromDB() error {
 		return err
 	}
 	return nil
+}
+
+// === Slave Management ===
+
+// RegisterSlave registers or updates a slave server
+func (d *Database) RegisterSlave(name, ipAddress string) (*DBSlave, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Check if slave already exists by IP
+	var existingID int64
+	err := d.db.QueryRow("SELECT id FROM slaves WHERE ip_address = ?", ipAddress).Scan(&existingID)
+	if err == nil {
+		// Update existing slave
+		_, err = d.db.Exec(`
+			UPDATE slaves SET name = ?, status = 'connected', last_heartbeat_at = CURRENT_TIMESTAMP
+			WHERE id = ?
+		`, name, existingID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update slave: %w", err)
+		}
+		return d.GetSlaveByID(existingID)
+	}
+
+	// Insert new slave
+	result, err := d.db.Exec(`
+		INSERT INTO slaves (name, ip_address, status, last_heartbeat_at)
+		VALUES (?, ?, 'connected', CURRENT_TIMESTAMP)
+	`, name, ipAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register slave: %w", err)
+	}
+
+	id, _ := result.LastInsertId()
+	return d.GetSlaveByID(id)
+}
+
+// GetSlaveByID returns a slave by its ID
+func (d *Database) GetSlaveByID(id int64) (*DBSlave, error) {
+	var slave DBSlave
+	var lastSyncAt, lastHeartbeatAt sql.NullString
+	err := d.db.QueryRow(`
+		SELECT id, name, ip_address, last_sync_at, last_heartbeat_at, status, zones_synced, created_at
+		FROM slaves WHERE id = ?
+	`, id).Scan(&slave.ID, &slave.Name, &slave.IPAddress, &lastSyncAt, &lastHeartbeatAt, &slave.Status, &slave.ZonesSynced, &slave.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if lastSyncAt.Valid {
+		slave.LastSyncAt = lastSyncAt.String
+	}
+	if lastHeartbeatAt.Valid {
+		slave.LastHeartbeatAt = lastHeartbeatAt.String
+	}
+	return &slave, nil
+}
+
+// ListSlaves returns all registered slaves
+func (d *Database) ListSlaves() ([]DBSlave, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	rows, err := d.db.Query(`
+		SELECT id, name, ip_address, last_sync_at, last_heartbeat_at, status, zones_synced, created_at
+		FROM slaves ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var slaves []DBSlave
+	for rows.Next() {
+		var slave DBSlave
+		var lastSyncAt, lastHeartbeatAt sql.NullString
+		if err := rows.Scan(&slave.ID, &slave.Name, &slave.IPAddress, &lastSyncAt, &lastHeartbeatAt, &slave.Status, &slave.ZonesSynced, &slave.CreatedAt); err != nil {
+			return nil, err
+		}
+		if lastSyncAt.Valid {
+			slave.LastSyncAt = lastSyncAt.String
+		}
+		if lastHeartbeatAt.Valid {
+			slave.LastHeartbeatAt = lastHeartbeatAt.String
+		}
+		slaves = append(slaves, slave)
+	}
+	return slaves, nil
+}
+
+// UpdateSlaveHeartbeat updates the last heartbeat time for a slave
+func (d *Database) UpdateSlaveHeartbeat(id int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`
+		UPDATE slaves SET last_heartbeat_at = CURRENT_TIMESTAMP, status = 'connected'
+		WHERE id = ?
+	`, id)
+	return err
+}
+
+// UpdateSlaveSyncStatus updates sync status for a slave
+func (d *Database) UpdateSlaveSyncStatus(id int64, zonesSynced int) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`
+		UPDATE slaves SET last_sync_at = CURRENT_TIMESTAMP, zones_synced = ?, status = 'synced'
+		WHERE id = ?
+	`, zonesSynced, id)
+	return err
+}
+
+// DeleteSlave removes a slave from the registry
+func (d *Database) DeleteSlave(id int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec("DELETE FROM slaves WHERE id = ?", id)
+	return err
+}
+
+// MarkSlaveDisconnected marks slaves as disconnected if they haven't sent heartbeat recently
+func (d *Database) MarkStaleSlaves(timeout int) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec(`
+		UPDATE slaves SET status = 'disconnected'
+		WHERE last_heartbeat_at < datetime('now', ? || ' seconds')
+		AND status != 'disconnected'
+	`, -timeout)
+	return err
 }

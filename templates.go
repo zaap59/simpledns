@@ -251,6 +251,14 @@ const sidebarHTML = `{{define "sidebar"}}
                                     <span>Settings</span>
                                 </a>
                             </li>
+                            <li>
+                                <a href="/replication" class="flex items-center gap-3 px-4 py-3 rounded-lg {{if eq .CurrentPath "/replication"}}bg-brand-600 text-white{{else}}text-gray-300 hover:bg-white/5 hover:text-white{{end}}">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                                    </svg>
+                                    <span>Replication</span>
+                                </a>
+                            </li>
                         </ul>
                     </div>
                     <div class="mt-6">
@@ -1008,7 +1016,7 @@ const zoneSettingsHTML = `<!DOCTYPE html>
                         <h3 class="text-lg font-semibold">Zone Information</h3>
                     </div>
                     <div class="p-5">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Zone Name</label>
                                 <p class="text-lg font-mono">{{.Zone.Name}}</p>
@@ -1022,6 +1030,14 @@ const zoneSettingsHTML = `<!DOCTYPE html>
                                 <p class="text-lg font-mono">{{.Zone.ID}}</p>
                             </div>
                             <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Serial</label>
+                                <p class="text-lg font-mono">{{.Zone.Serial}}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Version</label>
+                                <p class="text-lg font-mono">{{.Zone.Version}}</p>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Status</label>
                                 <div class="flex items-center gap-2">
                                     {{if .Zone.Enabled}}
@@ -1033,6 +1049,48 @@ const zoneSettingsHTML = `<!DOCTYPE html>
                                     {{end}}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SOA Record Configuration -->
+                <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] mb-6">
+                    <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+                        <h3 class="text-lg font-semibold">SOA Record (Start of Authority)</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Authoritative parameters for this DNS zone</p>
+                    </div>
+                    <div class="p-5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Primary Nameserver (NS)</label>
+                                <p class="text-lg font-mono">{{.Zone.NS}}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Admin Email</label>
+                                <p class="text-lg font-mono">{{.Zone.Admin}}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Default TTL</label>
+                                <p class="text-lg font-mono">{{.Zone.TTL}}s</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Refresh Interval</label>
+                                <p class="text-lg font-mono">{{.Zone.Refresh}}s <span class="text-sm text-gray-400">({{divideBy .Zone.Refresh 60}}min)</span></p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Retry Interval</label>
+                                <p class="text-lg font-mono">{{.Zone.Retry}}s <span class="text-sm text-gray-400">({{divideBy .Zone.Retry 60}}min)</span></p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Expire Time</label>
+                                <p class="text-lg font-mono">{{.Zone.Expire}}s <span class="text-sm text-gray-400">({{divideBy .Zone.Expire 3600}}h)</span></p>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-lg">
+                            <p class="text-sm text-blue-700 dark:text-blue-300">
+                                <strong>SOA Record:</strong> 
+                                <code class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 py-0.5 rounded">{{.Zone.Name}}. {{.Zone.TTL}} IN SOA {{.Zone.NS}} {{.Zone.Admin}} {{.Zone.Serial}} {{.Zone.Refresh}} {{.Zone.Retry}} {{.Zone.Expire}} {{.Zone.TTL}}</code>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -1167,7 +1225,18 @@ const globalSettingsHTML = `<!DOCTYPE html>
                         <h3 class="text-lg font-semibold">Server Information</h3>
                     </div>
                     <div class="p-5">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Server Role</label>
+                                <div class="flex items-center gap-2">
+                                    <span id="serverRole" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                        </svg>
+                                        Loading...
+                                    </span>
+                                </div>
+                            </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Server IP Address</label>
                                 <div class="flex items-center gap-2">
@@ -1180,30 +1249,50 @@ const globalSettingsHTML = `<!DOCTYPE html>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Mode</label>
-                                <p class="text-lg font-mono">{{.Mode}}</p>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">DNS Port</label>
+                                <p class="text-lg font-mono" id="dnsPort">Loading...</p>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Forwarders Count</label>
-                                <p class="text-lg">{{len .Forwarders}}</p>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Database Mode</label>
+                                <p class="text-lg font-mono">{{.Mode}}</p>
                             </div>
                         </div>
                         <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-lg">
                             <h4 class="font-medium text-blue-800 dark:text-blue-200 mb-2">💡 How to use this DNS server</h4>
-                            <p class="text-sm text-blue-700 dark:text-blue-300">Configure your devices or network to use the Server IP Address shown above as your DNS server (port 53).</p>
+                            <p class="text-sm text-blue-700 dark:text-blue-300">Configure your devices or network to use <span id="dnsEndpoint" class="font-mono font-semibold">Loading...</span> as your DNS server.</p>
                         </div>
                     </div>
                 </div>
 
                 <script>
-                    // Fetch and display server IP
+                    // Fetch and display server info
                     fetch('/api/server-info')
                         .then(r => r.json())
                         .then(data => {
                             document.getElementById('serverIP').textContent = data.ip || 'Unknown';
+                            document.getElementById('dnsPort').textContent = data.dns_port || '53';
+                            
+                            // Update role badge
+                            const roleEl = document.getElementById('serverRole');
+                            const role = (data.role || 'master').toUpperCase();
+                            if (role === 'MASTER') {
+                                roleEl.innerHTML = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> MASTER';
+                                roleEl.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
+                            } else {
+                                roleEl.innerHTML = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg> SLAVE';
+                                roleEl.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
+                            }
+                            
+                            // Update DNS endpoint
+                            const port = data.dns_port || 53;
+                            const endpoint = port === 53 ? data.ip : data.ip + ':' + port;
+                            document.getElementById('dnsEndpoint').textContent = endpoint;
+
                         })
                         .catch(() => {
                             document.getElementById('serverIP').textContent = 'Error loading';
+                            document.getElementById('dnsPort').textContent = 'Error';
+                            document.getElementById('serverRole').textContent = 'Error';
                         });
                     
                     function copyServerIP() {
@@ -1285,6 +1374,339 @@ const globalSettingsHTML = `<!DOCTYPE html>
                 alert('Error: ' + e.message);
             }
         }
+    </script>
+` + configModalHTML + `
+</body>
+</html>
+`
+
+// Replication page template
+const replicationHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>SimpleDNS - Replication</title>
+` + headHTML + `
+</head>
+<body x-data="{ sidebarOpen: false, darkMode: localStorage.getItem('darkMode') === 'true' }" 
+      x-init="$watch('darkMode', val => { localStorage.setItem('darkMode', val); document.documentElement.classList.toggle('dark', val) }); document.documentElement.classList.toggle('dark', darkMode)"
+      class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white/90 font-sans">
+    
+    <div class="flex h-screen overflow-hidden">
+        {{template "sidebar" .}}
+
+        <!-- Content Area -->
+        <div class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
+            
+            <div x-show="sidebarOpen" @click="sidebarOpen = false" 
+                 class="fixed inset-0 z-40 bg-black/50 lg:hidden" x-cloak></div>
+
+            {{template "header" .}}
+
+            <!-- Main Content -->
+            <main class="p-4 md:p-6 2xl:p-10">
+                <!-- Role Info Banner -->
+                <div id="roleBanner" class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] mb-6">
+                    <div class="p-5">
+                        <div class="flex items-center gap-4">
+                            <div id="roleIcon" class="flex h-14 w-14 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/20">
+                                <svg class="w-7 h-7 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-semibold">
+                                    <span id="roleTitle">Loading...</span>
+                                </h2>
+                                <p id="roleDescription" class="text-gray-500 dark:text-gray-400">Loading server role information...</p>
+                            </div>
+                            <div class="ml-auto">
+                                <span id="roleBadge" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold bg-gray-100 dark:bg-gray-800">
+                                    Loading...
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Master Section -->
+                <div id="masterSection" class="hidden">
+                    <!-- Sync Token Card -->
+                    <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] mb-6">
+                        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+                            <h3 class="text-lg font-semibold">Sync Token</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Share this token with slave servers to allow synchronization</p>
+                        </div>
+                        <div class="p-5">
+                            <div class="flex items-center gap-3">
+                                <div class="flex-1 relative">
+                                    <input type="password" id="syncToken" readonly 
+                                           class="w-full px-4 py-3 font-mono text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                                    <button onclick="toggleTokenVisibility()" class="absolute right-12 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" title="Show/Hide">
+                                        <svg id="eyeIcon" class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                    </button>
+                                    <button onclick="copySyncToken()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" title="Copy">
+                                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                {{if .EditMode}}
+                                <button onclick="regenerateToken()" class="px-4 py-3 text-sm border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+                                    Regenerate
+                                </button>
+                                {{end}}
+                            </div>
+                            <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-lg">
+                                <p class="text-sm text-blue-700 dark:text-blue-300">
+                                    <strong>Start a slave with:</strong><br>
+                                    <code id="slaveCommand" class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded mt-1 inline-block">Loading...</code>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connected Slaves Card -->
+                    <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+                        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                            <div>
+                                <h3 class="text-lg font-semibold">Connected Slaves</h3>
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Slave servers syncing zones from this master</p>
+                            </div>
+                            <button onclick="loadSlaves()" class="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" title="Refresh">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="p-5">
+                            <div id="slavesList" class="space-y-3">
+                                <div class="text-center py-8 text-gray-400">
+                                    <svg class="mx-auto w-12 h-12 mb-3 text-gray-300 dark:text-gray-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                    </svg>
+                                    Loading slaves...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Slave Section -->
+                <div id="slaveSection" class="hidden">
+                    <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+                        <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+                            <h3 class="text-lg font-semibold">Sync Status</h3>
+                        </div>
+                        <div class="p-5">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Master Server</label>
+                                    <p class="text-lg font-mono" id="masterHost">{{.MasterHost}}</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Sync Interval</label>
+                                    <p class="text-lg font-mono" id="syncInterval">{{.SyncInterval}}s</p>
+                                </div>
+                            </div>
+                            <div class="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                                <p class="text-sm text-yellow-700 dark:text-yellow-300">
+                                    This server is running in <strong>slave mode</strong>. Zones are automatically synchronized from the master server.
+                                    Changes to zones should be made on the master server.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let syncTokenValue = '';
+        let serverIP = '';
+
+        // Load server info and display appropriate section
+        fetch('/api/server-info')
+            .then(r => r.json())
+            .then(data => {
+                serverIP = data.ip || 'localhost';
+                const role = (data.role || 'master').toUpperCase();
+                
+                // Update role banner
+                const roleTitle = document.getElementById('roleTitle');
+                const roleDescription = document.getElementById('roleDescription');
+                const roleBadge = document.getElementById('roleBadge');
+                const roleIcon = document.getElementById('roleIcon');
+                
+                if (role === 'MASTER') {
+                    roleTitle.textContent = 'Master Server';
+                    roleDescription.textContent = 'This server is the primary DNS server. Slave servers will sync zones from here.';
+                    roleBadge.innerHTML = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> MASTER';
+                    roleBadge.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
+                    roleIcon.className = 'flex h-14 w-14 items-center justify-center rounded-xl bg-green-100 dark:bg-green-900/20';
+                    roleIcon.innerHTML = '<svg class="w-7 h-7 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>';
+                    
+                    document.getElementById('masterSection').classList.remove('hidden');
+                    loadSyncToken();
+                    loadSlaves();
+                } else {
+                    roleTitle.textContent = 'Slave Server';
+                    roleDescription.textContent = 'This server syncs zones from the master server automatically.';
+                    roleBadge.innerHTML = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg> SLAVE';
+                    roleBadge.className = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
+                    roleIcon.className = 'flex h-14 w-14 items-center justify-center rounded-xl bg-yellow-100 dark:bg-yellow-900/20';
+                    roleIcon.innerHTML = '<svg class="w-7 h-7 text-yellow-600 dark:text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>';
+                    
+                    document.getElementById('slaveSection').classList.remove('hidden');
+                }
+            });
+
+        async function loadSyncToken() {
+            try {
+                const resp = await fetch('/api/sync/token');
+                const data = await resp.json();
+                syncTokenValue = data.token || '';
+                document.getElementById('syncToken').value = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+                document.getElementById('slaveCommand').textContent = './simpledns -master-host=http://' + serverIP + ':8080 -master-token=' + syncTokenValue;
+            } catch(e) {
+                console.error('Failed to load sync token:', e);
+            }
+        }
+
+        function toggleTokenVisibility() {
+            const input = document.getElementById('syncToken');
+            if (input.type === 'password') {
+                input.type = 'text';
+                input.value = syncTokenValue;
+            } else {
+                input.type = 'password';
+                input.value = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+            }
+        }
+
+        function copySyncToken() {
+            navigator.clipboard.writeText(syncTokenValue).then(() => {
+                alert('Sync token copied!');
+            });
+        }
+
+        async function regenerateToken() {
+            if (!confirm('Are you sure? All connected slaves will need to be updated with the new token.')) return;
+            try {
+                const resp = await fetch('/api/sync/token/regenerate', { method: 'POST' });
+                const data = await resp.json();
+                if (data.token) {
+                    syncTokenValue = data.token;
+                    document.getElementById('syncToken').value = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
+                    document.getElementById('slaveCommand').textContent = './simpledns -master-host=http://' + serverIP + ':8080 -master-token=' + syncTokenValue;
+                    alert('Token regenerated! Update your slave servers with the new token.');
+                }
+            } catch(e) {
+                alert('Failed to regenerate token');
+            }
+        }
+
+        async function loadSlaves() {
+            try {
+                const resp = await fetch('/api/slaves');
+                const data = await resp.json();
+                const container = document.getElementById('slavesList');
+                
+                if (!data.slaves || data.slaves.length === 0) {
+                    container.innerHTML = ` + "`" + `
+                        <div class="text-center py-10">
+                            <svg class="mx-auto w-16 h-16 mb-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                            </svg>
+                            <p class="text-gray-500 dark:text-gray-400 font-medium">No slave servers connected</p>
+                            <p class="text-sm text-gray-400 dark:text-gray-500 mt-2">Slaves will appear here once they connect using the sync token above</p>
+                        </div>
+                    ` + "`" + `;
+                    return;
+                }
+
+                container.innerHTML = data.slaves.map(slave => ` + "`" + `
+                    <div class="flex items-center justify-between px-4 py-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                        <div class="flex items-center gap-4">
+                            <div class="flex h-12 w-12 items-center justify-center rounded-xl ${getStatusBg(slave.status)}">
+                                ${getStatusIcon(slave.status)}
+                            </div>
+                            <div>
+                                <span class="font-semibold text-lg">${slave.name}</span>
+                                <div class="text-sm text-gray-500 mt-0.5">
+                                    <span class="font-mono">${slave.ip_address}</span>
+                                    <span class="mx-2">•</span>
+                                    <span>${slave.zones_synced} zones synced</span>
+                                    ${slave.last_sync_at ? '<span class="mx-2">•</span>Last sync: ' + formatDate(slave.last_sync_at) : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1.5 text-xs font-semibold rounded-full ${getStatusBadge(slave.status)}">${slave.status.toUpperCase()}</span>
+                            {{if $.EditMode}}
+                            <button onclick="deleteSlave(${slave.id})" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Remove slave">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                            {{end}}
+                        </div>
+                    </div>
+                ` + "`" + `).join('');
+            } catch(e) {
+                console.error('Failed to load slaves:', e);
+            }
+        }
+
+        function getStatusBg(status) {
+            switch(status) {
+                case 'connected': case 'synced': return 'bg-green-100 dark:bg-green-900/20';
+                case 'disconnected': return 'bg-red-100 dark:bg-red-900/20';
+                default: return 'bg-yellow-100 dark:bg-yellow-900/20';
+            }
+        }
+
+        function getStatusIcon(status) {
+            const color = status === 'connected' || status === 'synced' ? 'text-green-600 dark:text-green-400' : 
+                          status === 'disconnected' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400';
+            return ` + "`" + `<svg class="w-6 h-6 ${color}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+            </svg>` + "`" + `;
+        }
+
+        function getStatusBadge(status) {
+            switch(status) {
+                case 'connected': case 'synced': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
+                case 'disconnected': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
+                default: return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'Never';
+            const d = new Date(dateStr);
+            return d.toLocaleString();
+        }
+
+        async function deleteSlave(id) {
+            if (!confirm('Remove this slave from the registry?')) return;
+            try {
+                const resp = await fetch('/api/slaves/' + id, { method: 'DELETE' });
+                if (resp.ok) {
+                    loadSlaves();
+                } else {
+                    alert('Failed to remove slave');
+                }
+            } catch(e) {
+                alert('Error removing slave');
+            }
+        }
+
+        // Refresh slaves every 30 seconds
+        setInterval(loadSlaves, 30000);
     </script>
 ` + configModalHTML + `
 </body>

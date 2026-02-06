@@ -28,6 +28,15 @@ var forwardTimeout time.Duration = 2 * time.Second
 var loadedZoneNames []string
 var dbMode string = "files" // "files" or "sqlite"
 
+// Server role configuration
+var serverRole string = "master" // "master" or "slave"
+var dnsPort int = 53             // DNS server port
+
+// Slave sync configuration
+var masterHost string = ""  // Master server URL (e.g., http://192.168.1.1:8080)
+var masterToken string = "" // Sync token for authentication with master
+var syncInterval time.Duration = 30 * time.Second
+
 // flag types that track whether they were set on the command line
 type stringFlag struct {
 	value string
@@ -71,6 +80,11 @@ type AppConfig struct {
 	Addr              string   `yaml:"addr" json:"addr,omitempty"`
 	WebEnabled        bool     `yaml:"web_enabled" json:"web_enabled,omitempty"`
 	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
+	ServerRole        string   `yaml:"server_role" json:"server_role,omitempty"`
+	DNSPort           int      `yaml:"dns_port" json:"dns_port,omitempty"`
+	MasterHost        string   `yaml:"master_host" json:"master_host,omitempty"`
+	MasterToken       string   `yaml:"master_token" json:"master_token,omitempty"`
+	SyncIntervalSec   int      `yaml:"sync_interval_seconds" json:"sync_interval_seconds,omitempty"`
 }
 
 func loadAppConfig(path string) (*AppConfig, error) {
@@ -247,6 +261,14 @@ type ZoneInfo struct {
 	ID      int64        `json:"id"`
 	Name    string       `json:"name"`
 	Enabled bool         `json:"enabled"`
+	Serial  int          `json:"serial"`
+	Version int          `json:"version"`
+	TTL     int          `json:"ttl"`
+	NS      string       `json:"ns"`
+	Admin   string       `json:"admin"`
+	Refresh int          `json:"refresh"`
+	Retry   int          `json:"retry"`
+	Expire  int          `json:"expire"`
 	Records []RecordInfo `json:"records"`
 }
 
@@ -312,6 +334,14 @@ func getZonesInfoFromDB() []ZoneInfo {
 			ID:      dbZone.ID,
 			Name:    strings.TrimSuffix(dbZone.Name, "."),
 			Enabled: dbZone.Enabled,
+			Serial:  dbZone.Serial,
+			Version: dbZone.Version,
+			TTL:     dbZone.TTL,
+			NS:      dbZone.NS,
+			Admin:   dbZone.Admin,
+			Refresh: dbZone.Refresh,
+			Retry:   dbZone.Retry,
+			Expire:  dbZone.Expire,
 		}
 
 		records, _ := database.ListRecordsByZone(dbZone.ID)
@@ -435,7 +465,15 @@ func handleWebZoneSettings(c *gin.Context) {
 		return
 	}
 
-	tmpl := template.Must(template.New("zone_settings").Parse(sidebarHTML + zoneSettingsHTML))
+	funcMap := template.FuncMap{
+		"divideBy": func(a, b int) int {
+			if b == 0 {
+				return 0
+			}
+			return a / b
+		},
+	}
+	tmpl := template.Must(template.New("zone_settings").Funcs(funcMap).Parse(sidebarHTML + zoneSettingsHTML))
 	data := struct {
 		Zone        *ZoneInfo
 		AllZones    []ZoneInfo
@@ -480,6 +518,32 @@ func handleWebSettings(c *gin.Context) {
 	}
 }
 
+func handleWebReplication(c *gin.Context) {
+	tmpl := template.Must(template.New("replication").Parse(headerHTML + sidebarHTML + replicationHTML))
+	data := struct {
+		Mode            string
+		EditMode        bool
+		CurrentPath     string
+		PageTitle       string
+		ShowSetupButton bool
+		MasterHost      string
+		SyncInterval    int
+	}{
+		Mode:            dbMode,
+		EditMode:        dbMode == "sqlite",
+		CurrentPath:     "/replication",
+		PageTitle:       "Replication",
+		ShowSetupButton: true,
+		MasterHost:      masterHost,
+		SyncInterval:    int(syncInterval.Seconds()),
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
 func handleAPIZones(c *gin.Context) {
 	c.JSON(http.StatusOK, getZonesInfo())
 }
@@ -499,7 +563,7 @@ func handleConfigModalJS(c *gin.Context) {
 	c.String(http.StatusOK, configModalJS)
 }
 
-// handleAPIServerInfo returns server information including IP address
+// handleAPIServerInfo returns server information including IP address, role, and ports
 func handleAPIServerInfo(c *gin.Context) {
 	// Try to get the server's IP from the request
 	serverIP := c.Request.Host
@@ -512,7 +576,12 @@ func handleAPIServerInfo(c *gin.Context) {
 		serverIP = getOutboundIP()
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"ip": serverIP,
+		"ip":          serverIP,
+		"role":        serverRole,
+		"dns_port":    dnsPort,
+		"mode":        dbMode,
+		"zones_count": len(loadedZoneNames),
+		"forwarders":  len(forwarders),
 	})
 }
 
@@ -550,6 +619,7 @@ func startWebServer(port int) *http.Server {
 	{
 		protected.GET("/", handleWebIndex)
 		protected.GET("/settings", handleWebSettings)
+		protected.GET("/replication", handleWebReplication)
 		protected.GET("/account", handleAccount)
 		protected.POST("/account", handleAccount)
 		protected.POST("/account/tokens", handleCreateAPIToken)
@@ -672,6 +742,8 @@ func main() {
 	var zonesDirFlag stringFlag
 	var forwardersFlag stringFlag
 	var configFileFlag stringFlag
+	var masterHostFlag stringFlag
+	var masterTokenFlag stringFlag
 	var logLevelFlag string
 
 	// register flags with defaults
@@ -680,6 +752,8 @@ func main() {
 	flag.Var(&configFileFlag, "config-file", "path to the configuration file (YAML format)")
 	flag.Var(&zonesDirFlag, "zones-dir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
+	flag.Var(&masterHostFlag, "master-host", "master server URL for slave mode (e.g., http://192.168.1.1:8080)")
+	flag.Var(&masterTokenFlag, "master-token", "sync token for authentication with master server")
 	flag.StringVar(&logLevelFlag, "log-level", "info", "log level (debug, info, warn, error)")
 	flag.Parse()
 
@@ -743,11 +817,34 @@ func main() {
 		if cfgApp.WebPort > 0 {
 			webPort = cfgApp.WebPort
 		}
+		// Server role and DNS port config
+		if cfgApp.ServerRole != "" {
+			serverRole = cfgApp.ServerRole
+		}
+		if cfgApp.DNSPort > 0 {
+			dnsPort = cfgApp.DNSPort
+		}
+		// Slave sync config
+		if cfgApp.MasterHost != "" {
+			masterHost = cfgApp.MasterHost
+		}
+		if cfgApp.MasterToken != "" {
+			masterToken = cfgApp.MasterToken
+		}
+		if cfgApp.SyncIntervalSec > 0 {
+			syncInterval = time.Duration(cfgApp.SyncIntervalSec) * time.Second
+		}
 	}
 
 	// CLI flags override config
 	if forwardersFlag.set {
 		forwarders = parseForwarders(forwardersFlag.value)
+	}
+	if masterHostFlag.set {
+		masterHost = masterHostFlag.value
+	}
+	if masterTokenFlag.set {
+		masterToken = masterTokenFlag.value
 	}
 
 	if forwarders == nil {
@@ -783,7 +880,7 @@ func main() {
 		zoneNames = append(zoneNames, z)
 	}
 	sort.Strings(zoneNames)
-	slog.Info("Config initialized", "mode", dbMode, "forwarders", len(forwarders), "forward_timeout", forwardTimeout, "loaded_zones", len(zoneNames))
+	slog.Info("Config initialized", "role", serverRole, "mode", dbMode, "dns_port", dnsPort, "forwarders", len(forwarders), "forward_timeout", forwardTimeout, "loaded_zones", len(zoneNames))
 	if len(zoneNames) > 0 {
 		slog.Info("Loaded zones", "zones", zoneNames)
 	} else {
@@ -792,13 +889,19 @@ func main() {
 
 	dns.HandleFunc(".", handleDNS)
 
-	udpServer := &dns.Server{Addr: ":53", Net: "udp"}
-	tcpServer := &dns.Server{Addr: ":53", Net: "tcp"}
+	dnsAddr := fmt.Sprintf(":%d", dnsPort)
+	udpServer := &dns.Server{Addr: dnsAddr, Net: "udp"}
+	tcpServer := &dns.Server{Addr: dnsAddr, Net: "tcp"}
 
 	// Start web server if enabled
 	var webServer *http.Server
 	if webEnabled {
 		webServer = startWebServer(webPort)
+	}
+
+	// Start slave sync if in slave mode
+	if serverRole == "slave" && masterHost != "" && masterToken != "" {
+		StartSlaveSync()
 	}
 
 	// Run servers in goroutines

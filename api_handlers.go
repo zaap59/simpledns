@@ -656,5 +656,20 @@ func registerAPIRoutes(router *gin.Engine) {
 		api.POST("/forwarders", handleAPICreateForwarder)
 		api.GET("/forwarders", handleAPIListForwarders)
 		api.DELETE("/forwarders/:id", handleAPIDeleteForwarder)
+
+		// Slave management (master only, requires auth)
+		api.GET("/slaves", HandleGetSlaves)
+		api.DELETE("/slaves/:id", HandleDeleteSlave)
+		api.GET("/sync/token", HandleGetSyncToken)
+		api.POST("/sync/token/regenerate", HandleRegenerateSyncToken)
+	}
+
+	// Sync API (uses sync token, not regular auth)
+	syncApi := router.Group("/api/sync")
+	syncApi.Use(ValidateSyncToken())
+	{
+		syncApi.POST("/register", HandleSyncRegister)
+		syncApi.POST("/heartbeat", HandleSyncHeartbeat)
+		syncApi.GET("/zones", HandleSyncZones)
 	}
 }
