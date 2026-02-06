@@ -60,6 +60,7 @@ type DBSlave struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
 	IPAddress       string `json:"ip_address"`
+	Port            int    `json:"port"`
 	LastSyncAt      string `json:"last_sync_at,omitempty"`
 	LastHeartbeatAt string `json:"last_heartbeat_at,omitempty"`
 	Status          string `json:"status"`
@@ -102,6 +103,12 @@ func (d *Database) runMigrations() error {
 
 	// Add version column to zones table if it doesn't exist
 	_, err = d.db.Exec(`ALTER TABLE zones ADD COLUMN version INTEGER DEFAULT 1`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return nil
+	}
+
+	// Add port column to slaves table if it doesn't exist
+	_, err = d.db.Exec(`ALTER TABLE slaves ADD COLUMN port INTEGER DEFAULT 0`)
 	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 		return nil
 	}
@@ -176,6 +183,7 @@ func (d *Database) createTables() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		ip_address TEXT NOT NULL,
+		port INTEGER DEFAULT 0,
 		last_sync_at DATETIME,
 		last_heartbeat_at DATETIME,
 		status TEXT DEFAULT 'pending',
@@ -617,7 +625,7 @@ func ReloadFromDB() error {
 // === Slave Management ===
 
 // RegisterSlave registers or updates a slave server
-func (d *Database) RegisterSlave(name, ipAddress string) (*DBSlave, error) {
+func (d *Database) RegisterSlave(name, ipAddress string, port int) (*DBSlave, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -627,9 +635,9 @@ func (d *Database) RegisterSlave(name, ipAddress string) (*DBSlave, error) {
 	if err == nil {
 		// Update existing slave
 		_, err = d.db.Exec(`
-			UPDATE slaves SET name = ?, status = 'connected', last_heartbeat_at = CURRENT_TIMESTAMP
+			UPDATE slaves SET name = ?, port = ?, status = 'connected', last_heartbeat_at = CURRENT_TIMESTAMP
 			WHERE id = ?
-		`, name, existingID)
+		`, name, port, existingID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update slave: %w", err)
 		}
@@ -638,9 +646,9 @@ func (d *Database) RegisterSlave(name, ipAddress string) (*DBSlave, error) {
 
 	// Insert new slave
 	result, err := d.db.Exec(`
-		INSERT INTO slaves (name, ip_address, status, last_heartbeat_at)
-		VALUES (?, ?, 'connected', CURRENT_TIMESTAMP)
-	`, name, ipAddress)
+		INSERT INTO slaves (name, ip_address, port, status, last_heartbeat_at)
+		VALUES (?, ?, ?, 'connected', CURRENT_TIMESTAMP)
+	`, name, ipAddress, port)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register slave: %w", err)
 	}
@@ -654,9 +662,9 @@ func (d *Database) GetSlaveByID(id int64) (*DBSlave, error) {
 	var slave DBSlave
 	var lastSyncAt, lastHeartbeatAt sql.NullString
 	err := d.db.QueryRow(`
-		SELECT id, name, ip_address, last_sync_at, last_heartbeat_at, status, zones_synced, created_at
+		SELECT id, name, ip_address, port, last_sync_at, last_heartbeat_at, status, zones_synced, created_at
 		FROM slaves WHERE id = ?
-	`, id).Scan(&slave.ID, &slave.Name, &slave.IPAddress, &lastSyncAt, &lastHeartbeatAt, &slave.Status, &slave.ZonesSynced, &slave.CreatedAt)
+	`, id).Scan(&slave.ID, &slave.Name, &slave.IPAddress, &slave.Port, &lastSyncAt, &lastHeartbeatAt, &slave.Status, &slave.ZonesSynced, &slave.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +683,7 @@ func (d *Database) ListSlaves() ([]DBSlave, error) {
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
-		SELECT id, name, ip_address, last_sync_at, last_heartbeat_at, status, zones_synced, created_at
+		SELECT id, name, ip_address, port, last_sync_at, last_heartbeat_at, status, zones_synced, created_at
 		FROM slaves ORDER BY created_at DESC
 	`)
 	if err != nil {
@@ -687,7 +695,7 @@ func (d *Database) ListSlaves() ([]DBSlave, error) {
 	for rows.Next() {
 		var slave DBSlave
 		var lastSyncAt, lastHeartbeatAt sql.NullString
-		if err := rows.Scan(&slave.ID, &slave.Name, &slave.IPAddress, &lastSyncAt, &lastHeartbeatAt, &slave.Status, &slave.ZonesSynced, &slave.CreatedAt); err != nil {
+		if err := rows.Scan(&slave.ID, &slave.Name, &slave.IPAddress, &slave.Port, &lastSyncAt, &lastHeartbeatAt, &slave.Status, &slave.ZonesSynced, &slave.CreatedAt); err != nil {
 			return nil, err
 		}
 		if lastSyncAt.Valid {

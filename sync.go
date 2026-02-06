@@ -30,12 +30,14 @@ type SyncZoneData struct {
 type SyncResponse struct {
 	Zones     []SyncZoneData `json:"zones"`
 	Timestamp string         `json:"timestamp"`
+	ZoneNames []string       `json:"zone_names"`
 }
 
 // SlaveInfo is sent by slave when registering
 type SlaveInfo struct {
 	Name      string `json:"name"`
 	IPAddress string `json:"ip_address"`
+	Port      int    `json:"port"`
 }
 
 // === Sync Token Management ===
@@ -151,7 +153,8 @@ func HandleSyncRegister(c *gin.Context) {
 		info.Name = "slave-" + info.IPAddress
 	}
 
-	slave, err := database.RegisterSlave(info.Name, info.IPAddress)
+	// Port information may be 0 if unknown
+	slave, err := database.RegisterSlave(info.Name, info.IPAddress, info.Port)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -246,9 +249,16 @@ func HandleSyncZones(c *gin.Context) {
 		}
 	}
 
+	// Include a full list of zone names so slaves can reconcile deletions
+	zoneNames := make([]string, 0, len(zones))
+	for _, z := range zones {
+		zoneNames = append(zoneNames, z.Name)
+	}
+
 	c.JSON(http.StatusOK, SyncResponse{
 		Zones:     syncData,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		ZoneNames: zoneNames,
 	})
 }
 
@@ -361,9 +371,18 @@ func StartSlaveSync() {
 
 	slog.Info("Starting slave sync", "master", getMasterURL(), "interval", syncInterval)
 
+	// Ensure our local sync token matches the configured master token so master can authenticate when pushing
+	if masterToken != "" && database != nil {
+		_ = database.SetConfig(syncTokenConfigKey, masterToken)
+	}
+
 	// Register with master
 	if err := registerWithMaster(); err != nil {
 		slog.Error("Failed to register with master", "error", err)
+	} else {
+		// After successful registration, reset lastSyncVersion to 0 to request a full sync
+		// This handles cases where local zone versions are out-of-sync/higher than the master
+		lastSyncVersion = 0
 	}
 
 	// Start sync loop
@@ -396,8 +415,17 @@ func registerWithMaster() error {
 	// Get our hostname
 	hostname := "slave"
 
+	// Determine our IP and port to advertise to master
+	ip := getOutboundIP()
+	port := 0
+	if webServerPort > 0 {
+		port = webServerPort
+	}
+
 	body, _ := json.Marshal(SlaveInfo{
-		Name: hostname,
+		Name:      hostname,
+		IPAddress: ip,
+		Port:      port,
 	})
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
@@ -500,31 +528,110 @@ func syncFromMaster() error {
 	// We successfully contacted the master
 	setMasterConnected(true)
 
+	// If the master provided a full list of zone names, check if the master
+	// has zones that are missing locally. If so, force a full sync so the
+	// slave pulls newly-created or re-created zones even when versions don't
+	// indicate a change.
+	if len(syncResp.ZoneNames) > 0 {
+		masterSet := make(map[string]struct{}, len(syncResp.ZoneNames))
+		for _, n := range syncResp.ZoneNames {
+			masterSet[n] = struct{}{}
+		}
+
+		localZones, err := database.ListZones()
+		if err == nil {
+			localSet := make(map[string]struct{}, len(localZones))
+			for _, lz := range localZones {
+				localSet[lz.Name] = struct{}{}
+			}
+
+			missingAny := false
+			for name := range masterSet {
+				if _, ok := localSet[name]; !ok {
+					missingAny = true
+					slog.Info("Master has zone missing locally; scheduling full sync", "zone", name)
+					break
+				}
+			}
+
+			if missingAny && lastSyncVersion != 0 {
+				lastSyncVersion = 0
+				// Trigger an immediate follow-up full sync asynchronously
+				go func() {
+					time.Sleep(200 * time.Millisecond)
+					if err := syncFromMaster(); err != nil {
+						slog.Warn("Follow-up full sync (missing zones) failed", "error", err)
+					}
+				}()
+				// Return now; the follow-up full sync will perform the full sync work
+				return nil
+			}
+		}
+	}
+
 	if len(syncResp.Zones) == 0 {
 		slog.Debug("No zones to sync")
-		return nil
-	}
+	} else {
+		slog.Info("Syncing zones from master", "count", len(syncResp.Zones))
 
-	slog.Info("Syncing zones from master", "count", len(syncResp.Zones))
-
-	// Apply zones
-	for _, syncData := range syncResp.Zones {
-		if err := applyZoneSync(syncData); err != nil {
-			slog.Error("Failed to sync zone", "zone", syncData.Zone.Name, "error", err)
-			continue
+		// Apply zones and track highest version synced
+		for _, syncData := range syncResp.Zones {
+			if err := applyZoneSync(syncData); err != nil {
+				slog.Error("Failed to sync zone", "zone", syncData.Zone.Name, "error", err)
+				continue
+			}
+			if syncData.Zone.Version > lastSyncVersion {
+				lastSyncVersion = syncData.Zone.Version
+			}
 		}
-		// Track highest version synced
-		if syncData.Zone.Version > lastSyncVersion {
-			lastSyncVersion = syncData.Zone.Version
+
+		// Reload DNS zones after applying changes
+		if err := ReloadFromDB(); err != nil {
+			slog.Warn("Failed to reload zones after sync", "error", err)
 		}
 	}
 
-	// Reload DNS zones
-	if err := ReloadFromDB(); err != nil {
-		slog.Warn("Failed to reload zones after sync", "error", err)
+	// Reconcile deletions: if master provided the full list of zone names, remove local zones not present on master
+	if len(syncResp.ZoneNames) > 0 {
+		masterSet := make(map[string]struct{}, len(syncResp.ZoneNames))
+		for _, n := range syncResp.ZoneNames {
+			masterSet[n] = struct{}{}
+		}
+
+		localZones, err := database.ListZones()
+		if err == nil {
+			deletedAny := false
+			for _, lz := range localZones {
+				if _, ok := masterSet[lz.Name]; !ok {
+					if derr := database.DeleteZone(lz.ID); derr == nil {
+						deletedAny = true
+						slog.Info("Deleted local zone not present on master", "zone", lz.Name)
+					} else {
+						slog.Warn("Failed to delete local zone during reconciliation", "zone", lz.Name, "error", derr)
+					}
+				}
+			}
+			// If we deleted zones, reset lastSyncVersion so we request a full sync (in case new zones have lower versions)
+			if deletedAny {
+				lastSyncVersion = 0
+				slog.Info("Reconciliation removed local zones; reset lastSyncVersion to force full sync")
+				// Trigger an immediate follow-up full sync asynchronously
+				go func() {
+					time.Sleep(500 * time.Millisecond)
+					if err := syncFromMaster(); err != nil {
+						slog.Warn("Follow-up full sync failed", "error", err)
+					}
+				}()
+			}
+
+			// Reload after possible deletions
+			if err := ReloadFromDB(); err != nil {
+				slog.Warn("Failed to reload zones after reconciliation", "error", err)
+			}
+		}
 	}
 
-	slog.Info("Sync completed", "zones", len(syncResp.Zones), "last_version", lastSyncVersion)
+	slog.Info("Sync completed", "zones_returned", len(syncResp.Zones), "last_version", lastSyncVersion)
 	return nil
 }
 
@@ -599,4 +706,135 @@ func applyZoneSync(syncData SyncZoneData) error {
 	}
 
 	return nil
+}
+
+// Master-side: push a zone payload to a slave
+func pushZoneToSlave(slave DBSlave, zoneID int64) error {
+	port := slave.Port
+	if port == 0 {
+		port = 8080
+	}
+
+	// Build payload for the specific zone
+	z, err := database.GetZone(zoneID)
+	if err != nil {
+		return err
+	}
+	records, _ := database.ListRecordsByZone(z.ID)
+
+	syncResp := SyncResponse{
+		Zones: []SyncZoneData{{
+			Zone:    *z,
+			Records: records,
+		}},
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Include full list of zone names to help slaves reconcile deletions
+	allZones, _ := database.ListZones()
+	zoneNames := make([]string, 0, len(allZones))
+	for _, az := range allZones {
+		zoneNames = append(zoneNames, az.Name)
+	}
+	syncResp.ZoneNames = zoneNames
+
+	data, _ := json.Marshal(syncResp)
+
+	url := fmt.Sprintf("http://%s:%d/api/replication/push", slave.IPAddress, port)
+	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	// Use master's sync token to authenticate
+	token, err := GetSyncToken()
+	if err == nil && token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("push failed: %s - %s", resp.Status, string(bodyBytes))
+	}
+
+	return nil
+}
+
+// Push zone to all registered slaves (async)
+func pushZoneToAllSlaves(zoneID int64) {
+	slaves, err := database.ListSlaves()
+	if err != nil {
+		slog.Warn("failed to list slaves for push", "error", err)
+		return
+	}
+	for _, s := range slaves {
+		go func(sl DBSlave) {
+			if err := pushZoneToSlave(sl, zoneID); err != nil {
+				slog.Warn("failed to push zone to slave", "slave", sl.IPAddress, "error", err)
+			} else {
+				slog.Info("Pushed zone to slave", "slave", sl.IPAddress, "zone_id", zoneID)
+			}
+		}(s)
+	}
+}
+
+// Push full zone name list to all slaves (used after deletions)
+func pushZoneListToAllSlaves() {
+	slaves, err := database.ListSlaves()
+	if err != nil {
+		slog.Warn("failed to list slaves for push zone list", "error", err)
+		return
+	}
+
+	allZones, _ := database.ListZones()
+	zoneNames := make([]string, 0, len(allZones))
+	for _, az := range allZones {
+		zoneNames = append(zoneNames, az.Name)
+	}
+
+	syncResp := SyncResponse{
+		Zones:     []SyncZoneData{},
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		ZoneNames: zoneNames,
+	}
+
+	data, _ := json.Marshal(syncResp)
+
+	for _, s := range slaves {
+		go func(sl DBSlave) {
+			port := sl.Port
+			if port == 0 {
+				port = 8080
+			}
+			url := fmt.Sprintf("http://%s:%d/api/replication/push", sl.IPAddress, port)
+			req, err := http.NewRequest("POST", url, bytes.NewReader(data))
+			if err != nil {
+				slog.Warn("failed to build push request", "slave", sl.IPAddress, "error", err)
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+			token, err := GetSyncToken()
+			if err == nil && token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp, err := client.Do(req)
+			if err != nil {
+				slog.Warn("failed to push zone list to slave", "slave", sl.IPAddress, "error", err)
+				return
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				slog.Warn("push zone list returned non-OK", "slave", sl.IPAddress, "status", resp.Status)
+			}
+		}(s)
+	}
 }

@@ -359,7 +359,7 @@ const indexHTML = `<!DOCTYPE html>
                 <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] overflow-hidden">
                     <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
                         <h3 class="text-lg font-semibold">DNS Zones</h3>
-                        {{if .EditMode}}
+                        {{if .CanEdit}}
                         <button onclick="showAddZoneModal()" class="flex items-center gap-2 px-4 py-2 text-sm bg-brand-600 text-white hover:bg-brand-700 rounded-lg transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -434,7 +434,7 @@ const indexHTML = `<!DOCTYPE html>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
                         </svg>
                         <p class="text-lg font-medium">No zones configured</p>
-                        {{if .EditMode}}<p class="text-sm mt-2">Click "Add Zone" to create your first zone.</p>{{end}}
+                        {{if .CanEdit}}<p class="text-sm mt-2">Click "Add Zone" to create your first zone.</p>{{end}}
                     </div>
                     {{end}}
                 </div>
@@ -443,7 +443,7 @@ const indexHTML = `<!DOCTYPE html>
         </div>
     </div>
 
-    {{if .EditMode}}
+    {{if .CanEdit}}
     <!-- Add Zone Modal -->
     <div id="addZoneModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
@@ -614,7 +614,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                 <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] overflow-hidden">
                     <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
                         <h3 class="text-lg font-semibold">DNS Records</h3>
-                        {{if .EditMode}}
+                        {{if .CanEdit}}
                         <button onclick="showAddRecordModal()" class="flex items-center gap-2 px-4 py-2 text-sm bg-brand-600 text-white hover:bg-brand-700 rounded-lg transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -633,7 +633,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Value</span></th>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Priority</span></th>
                                     <th class="px-5 py-3 sm:px-6 text-left"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">TTL</span></th>
-                                    {{if .EditMode}}<th class="px-5 py-3 sm:px-6 text-right"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Actions</span></th>{{end}}
+                                    {{if .CanEdit}}<th class="px-5 py-3 sm:px-6 text-right"><span class="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Actions</span></th>{{end}}
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -654,7 +654,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                                     <td class="px-5 py-4 sm:px-6"><span class="font-mono text-sm text-gray-600 dark:text-gray-300 break-all" data-field="value">{{.Value}}</span></td>
                                     <td class="px-5 py-4 sm:px-6"><span class="text-sm text-gray-500" data-field="priority">{{if eq .Type "MX"}}{{.Priority}}{{else}}-{{end}}</span></td>
                                     <td class="px-5 py-4 sm:px-6"><span class="text-sm text-gray-500" data-field="ttl">{{.TTL}}</span></td>
-                                    {{if $.EditMode}}
+                                    {{if $.CanEdit}}
                                     <td class="px-5 py-4 sm:px-6">
                                         <div class="flex items-center justify-end gap-2">
                                             <button onclick="showEditRecordModal({{.ID}}, this)" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5" title="Edit">
@@ -678,7 +678,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
                     {{else}}
                     <div class="p-10 text-center text-gray-500 dark:text-gray-400">
                         <p class="text-lg font-medium">No records in this zone</p>
-                        {{if .EditMode}}<p class="text-sm mt-2">Click "Add Record" to create your first record.</p>{{end}}
+                        {{if .CanEdit}}<p class="text-sm mt-2">Click "Add Record" to create your first record.</p>{{end}}
                     </div>
                     {{end}}
                 </div>
@@ -686,7 +686,7 @@ const zoneRecordsHTML = `<!DOCTYPE html>
         </div>
     </div>
 
-    {{if .EditMode}}
+    {{if .CanEdit}}
     <!-- Add Record Modal -->
     <div id="addRecordModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
@@ -1095,7 +1095,7 @@ const zoneSettingsHTML = `<!DOCTYPE html>
                     </div>
                 </div>
 
-                {{if .EditMode}}
+                {{if .CanEdit}}
                 <!-- Danger Zone -->
                 <div class="rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10">
                     <div class="px-5 py-4 border-b border-red-200 dark:border-red-900/50">
@@ -1175,7 +1175,7 @@ const globalSettingsHTML = `<!DOCTYPE html>
                             <h3 class="text-lg font-semibold">DNS Forwarders</h3>
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure upstream DNS servers for queries that don't match any local zone</p>
                         </div>
-                        {{if .EditMode}}
+                        {{if .CanEdit}}
                         <button onclick="showAddForwarderModal()" class="flex items-center gap-2 px-4 py-2 text-sm bg-brand-600 text-white hover:bg-brand-700 rounded-lg transition-colors">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -1197,7 +1197,7 @@ const globalSettingsHTML = `<!DOCTYPE html>
                                     </div>
                                     <span class="font-mono text-sm">{{.}}</span>
                                 </div>
-                                {{if $.EditMode}}
+                                {{if $.CanEdit}}
                                 <button onclick="deleteForwarder('{{.}}', this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -1306,7 +1306,7 @@ const globalSettingsHTML = `<!DOCTYPE html>
         </div>
     </div>
 
-    {{if .EditMode}}
+                {{if .CanEdit}}
     <!-- Add Forwarder Modal -->
     <div id="addForwarderModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">
@@ -1453,7 +1453,7 @@ const replicationHTML = `<!DOCTYPE html>
                                         </svg>
                                     </button>
                                 </div>
-                                {{if .EditMode}}
+                                {{if .CanEdit}}
                                 <button onclick="regenerateToken()" class="px-4 py-3 text-sm border border-orange-300 dark:border-orange-700 text-orange-600 dark:text-orange-400 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
                                     Regenerate
                                 </button>
@@ -1668,7 +1668,7 @@ const replicationHTML = `<!DOCTYPE html>
                         </div>
                         <div class="flex items-center gap-3">
                             <span class="px-3 py-1.5 text-xs font-semibold rounded-full ${getStatusBadge(slave.status)}">${slave.status.toUpperCase()}</span>
-                            {{if $.EditMode}}
+                            {{if $.CanEdit}}
                             <button onclick="deleteSlave(${slave.id})" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Remove slave">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>

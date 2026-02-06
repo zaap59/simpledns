@@ -32,6 +32,9 @@ var dbMode string = "files" // "files" or "sqlite"
 var serverRole string = "master" // "master" or "slave"
 var dnsPort int = 53             // DNS server port
 
+// Web server port (set from config in main)
+var webServerPort int = 0
+
 // Slave sync configuration
 var masterAPIHost string = "" // Master server IP (e.g., 192.168.1.1)
 var masterAPIPort int = 8080  // Master API port (default 8080)
@@ -382,12 +385,14 @@ func handleWebIndex(c *gin.Context) {
 	for _, z := range zones {
 		totalRecords += len(z.Records)
 	}
+	canEdit := dbMode == "sqlite" && serverRole != "slave"
 	data := struct {
 		Zones           []ZoneInfo
 		ZoneCount       int
 		RecordCount     int
 		Mode            string
 		EditMode        bool
+		CanEdit         bool
 		Forwarders      []string
 		CurrentPath     string
 		PageTitle       string
@@ -398,6 +403,7 @@ func handleWebIndex(c *gin.Context) {
 		RecordCount:     totalRecords,
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
+		CanEdit:         canEdit,
 		Forwarders:      forwarders,
 		CurrentPath:     "/",
 		PageTitle:       "Dashboard",
@@ -429,17 +435,20 @@ func handleWebZoneRecords(c *gin.Context) {
 	}
 
 	tmpl := template.Must(template.New("zone_records").Parse(sidebarHTML + zoneRecordsHTML))
+	canEdit := dbMode == "sqlite" && serverRole != "slave"
 	data := struct {
 		Zone        *ZoneInfo
 		AllZones    []ZoneInfo
 		Mode        string
 		EditMode    bool
+		CanEdit     bool
 		CurrentPath string
 	}{
 		Zone:        zone,
 		AllZones:    zones,
 		Mode:        dbMode,
 		EditMode:    dbMode == "sqlite",
+		CanEdit:     canEdit,
 		CurrentPath: "/zones",
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -476,17 +485,20 @@ func handleWebZoneSettings(c *gin.Context) {
 		},
 	}
 	tmpl := template.Must(template.New("zone_settings").Funcs(funcMap).Parse(sidebarHTML + zoneSettingsHTML))
+	canEdit := dbMode == "sqlite" && serverRole != "slave"
 	data := struct {
 		Zone        *ZoneInfo
 		AllZones    []ZoneInfo
 		Mode        string
 		EditMode    bool
+		CanEdit     bool
 		CurrentPath string
 	}{
 		Zone:        zone,
 		AllZones:    zones,
 		Mode:        dbMode,
 		EditMode:    dbMode == "sqlite",
+		CanEdit:     canEdit,
 		CurrentPath: "/zones",
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -501,6 +513,7 @@ func handleWebSettings(c *gin.Context) {
 	data := struct {
 		Mode            string
 		EditMode        bool
+		CanEdit         bool
 		Forwarders      []string
 		CurrentPath     string
 		PageTitle       string
@@ -508,6 +521,7 @@ func handleWebSettings(c *gin.Context) {
 	}{
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
+		CanEdit:         dbMode == "sqlite" && serverRole != "slave",
 		Forwarders:      forwarders,
 		CurrentPath:     "/settings",
 		PageTitle:       "Settings",
@@ -525,6 +539,7 @@ func handleWebReplication(c *gin.Context) {
 	data := struct {
 		Mode            string
 		EditMode        bool
+		CanEdit         bool
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -534,6 +549,7 @@ func handleWebReplication(c *gin.Context) {
 	}{
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
+		CanEdit:         dbMode == "sqlite" && serverRole != "slave",
 		CurrentPath:     "/replication",
 		PageTitle:       "Replication",
 		ShowSetupButton: true,
@@ -915,6 +931,8 @@ func main() {
 	// Start web server if enabled
 	var webServer *http.Server
 	if webEnabled {
+		// set global for replication registration
+		webServerPort = webPort
 		webServer = startWebServer(webPort)
 	}
 
