@@ -1501,14 +1501,18 @@ const replicationHTML = `<!DOCTYPE html>
                             <h3 class="text-lg font-semibold">Sync Status</h3>
                         </div>
                         <div class="p-5">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Master Server</label>
-                                    <p class="text-lg font-mono" id="masterHost">{{.MasterHost}}</p>
+                                    <p class="text-lg font-mono" id="masterHost">{{.MasterHost}}:{{.MasterPort}}</p>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Sync Interval</label>
                                     <p class="text-lg font-mono" id="syncInterval">{{.SyncInterval}}s</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Master Connection</label>
+                                    <p class="text-lg font-mono" id="masterConnection">Loading...</p>
                                 </div>
                             </div>
                             <div class="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-700 rounded-lg">
@@ -1534,6 +1538,24 @@ const replicationHTML = `<!DOCTYPE html>
             .then(data => {
                 serverIP = data.ip || 'localhost';
                 const role = (data.role || 'master').toUpperCase();
+
+                // Update master connection status (for slave view)
+                try {
+                    const masterConnected = !!data.master_connected;
+                    const masterLast = data.master_last_contact || '';
+                    const connEl = document.getElementById('masterConnection');
+                    if (connEl) {
+                        if (masterConnected) {
+                            connEl.textContent = 'Connected' + (masterLast ? ' • ' + new Date(masterLast).toLocaleString() : '');
+                            connEl.className = 'text-lg font-mono text-green-600';
+                        } else {
+                            connEl.textContent = 'Disconnected';
+                            connEl.className = 'text-lg font-mono text-red-600';
+                        }
+                    }
+                } catch(e) {
+                    // ignore
+                }
                 
                 // Update role banner
                 const roleTitle = document.getElementById('roleTitle');
@@ -1570,7 +1592,7 @@ const replicationHTML = `<!DOCTYPE html>
                 const data = await resp.json();
                 syncTokenValue = data.token || '';
                 document.getElementById('syncToken').value = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
-                document.getElementById('slaveCommand').textContent = './simpledns -master-host=http://' + serverIP + ':8080 -master-token=' + syncTokenValue;
+                document.getElementById('slaveCommand').textContent = './simpledns -master-api-host=' + serverIP + ' -master-api-port=8080 -master-token=YOUR_TOKEN';
             } catch(e) {
                 console.error('Failed to load sync token:', e);
             }
@@ -1601,7 +1623,7 @@ const replicationHTML = `<!DOCTYPE html>
                 if (data.token) {
                     syncTokenValue = data.token;
                     document.getElementById('syncToken').value = '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••';
-                    document.getElementById('slaveCommand').textContent = './simpledns -master-host=http://' + serverIP + ':8080 -master-token=' + syncTokenValue;
+                    document.getElementById('slaveCommand').textContent = './simpledns -master-host=http://' + serverIP + ':8080 -master-token=YOUR_TOKEN';
                     alert('Token regenerated! Update your slave servers with the new token.');
                 }
             } catch(e) {

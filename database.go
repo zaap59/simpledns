@@ -681,7 +681,7 @@ func (d *Database) ListSlaves() ([]DBSlave, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var slaves []DBSlave
 	for rows.Next() {

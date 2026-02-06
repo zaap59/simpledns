@@ -33,8 +33,9 @@ var serverRole string = "master" // "master" or "slave"
 var dnsPort int = 53             // DNS server port
 
 // Slave sync configuration
-var masterHost string = ""  // Master server URL (e.g., http://192.168.1.1:8080)
-var masterToken string = "" // Sync token for authentication with master
+var masterAPIHost string = "" // Master server IP (e.g., 192.168.1.1)
+var masterAPIPort int = 8080  // Master API port (default 8080)
+var masterToken string = ""   // Sync token for authentication with master
 var syncInterval time.Duration = 30 * time.Second
 
 // flag types that track whether they were set on the command line
@@ -82,7 +83,8 @@ type AppConfig struct {
 	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
 	ServerRole        string   `yaml:"server_role" json:"server_role,omitempty"`
 	DNSPort           int      `yaml:"dns_port" json:"dns_port,omitempty"`
-	MasterHost        string   `yaml:"master_host" json:"master_host,omitempty"`
+	MasterAPIHost     string   `yaml:"master_api_host" json:"master_api_host,omitempty"`
+	MasterAPIPort     int      `yaml:"master_api_port" json:"master_api_port,omitempty"`
 	MasterToken       string   `yaml:"master_token" json:"master_token,omitempty"`
 	SyncIntervalSec   int      `yaml:"sync_interval_seconds" json:"sync_interval_seconds,omitempty"`
 }
@@ -527,6 +529,7 @@ func handleWebReplication(c *gin.Context) {
 		PageTitle       string
 		ShowSetupButton bool
 		MasterHost      string
+		MasterPort      int
 		SyncInterval    int
 	}{
 		Mode:            dbMode,
@@ -534,7 +537,8 @@ func handleWebReplication(c *gin.Context) {
 		CurrentPath:     "/replication",
 		PageTitle:       "Replication",
 		ShowSetupButton: true,
-		MasterHost:      masterHost,
+		MasterHost:      masterAPIHost,
+		MasterPort:      masterAPIPort,
 		SyncInterval:    int(syncInterval.Seconds()),
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -575,13 +579,20 @@ func handleAPIServerInfo(c *gin.Context) {
 	if serverIP == "localhost" || serverIP == "127.0.0.1" {
 		serverIP = getOutboundIP()
 	}
+	lastContact := ""
+	if !masterLastContact.IsZero() {
+		lastContact = masterLastContact.Format(time.RFC3339)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"ip":          serverIP,
-		"role":        serverRole,
-		"dns_port":    dnsPort,
-		"mode":        dbMode,
-		"zones_count": len(loadedZoneNames),
-		"forwarders":  len(forwarders),
+		"ip":                  serverIP,
+		"role":                serverRole,
+		"dns_port":            dnsPort,
+		"mode":                dbMode,
+		"zones_count":         len(loadedZoneNames),
+		"forwarders":          len(forwarders),
+		"master_connected":    masterConnected,
+		"master_last_contact": lastContact,
 	})
 }
 
@@ -743,6 +754,7 @@ func main() {
 	var forwardersFlag stringFlag
 	var configFileFlag stringFlag
 	var masterHostFlag stringFlag
+	var masterPortFlag int
 	var masterTokenFlag stringFlag
 	var logLevelFlag string
 
@@ -752,7 +764,8 @@ func main() {
 	flag.Var(&configFileFlag, "config-file", "path to the configuration file (YAML format)")
 	flag.Var(&zonesDirFlag, "zones-dir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
-	flag.Var(&masterHostFlag, "master-host", "master server URL for slave mode (e.g., http://192.168.1.1:8080)")
+	flag.Var(&masterHostFlag, "master-api-host", "master server IP address for slave mode (e.g., 192.168.1.1)")
+	flag.IntVar(&masterPortFlag, "master-api-port", 0, "master server API port for slave mode (default 8080)")
 	flag.Var(&masterTokenFlag, "master-token", "sync token for authentication with master server")
 	flag.StringVar(&logLevelFlag, "log-level", "info", "log level (debug, info, warn, error)")
 	flag.Parse()
@@ -825,8 +838,11 @@ func main() {
 			dnsPort = cfgApp.DNSPort
 		}
 		// Slave sync config
-		if cfgApp.MasterHost != "" {
-			masterHost = cfgApp.MasterHost
+		if cfgApp.MasterAPIHost != "" {
+			masterAPIHost = cfgApp.MasterAPIHost
+		}
+		if cfgApp.MasterAPIPort > 0 {
+			masterAPIPort = cfgApp.MasterAPIPort
 		}
 		if cfgApp.MasterToken != "" {
 			masterToken = cfgApp.MasterToken
@@ -841,7 +857,10 @@ func main() {
 		forwarders = parseForwarders(forwardersFlag.value)
 	}
 	if masterHostFlag.set {
-		masterHost = masterHostFlag.value
+		masterAPIHost = masterHostFlag.value
+	}
+	if masterPortFlag > 0 {
+		masterAPIPort = masterPortFlag
 	}
 	if masterTokenFlag.set {
 		masterToken = masterTokenFlag.value
@@ -900,7 +919,7 @@ func main() {
 	}
 
 	// Start slave sync if in slave mode
-	if serverRole == "slave" && masterHost != "" && masterToken != "" {
+	if serverRole == "slave" && masterAPIHost != "" && masterToken != "" {
 		StartSlaveSync()
 	}
 

@@ -236,10 +236,13 @@ func HandleSyncZones(c *gin.Context) {
 	}
 
 	// Update slave sync status if slave_id provided
+	// Use total number of zones on the master, not only the number returned for this incremental sync,
+	// otherwise a sync with no changes would set the display to 0.
 	slaveIDStr := c.Query("slave_id")
 	if slaveIDStr != "" {
 		if slaveID, err := strconv.ParseInt(slaveIDStr, 10, 64); err == nil {
-			_ = database.UpdateSlaveSyncStatus(slaveID, len(syncData))
+			totalZones := len(zones)
+			_ = database.UpdateSlaveSyncStatus(slaveID, totalZones)
 		}
 	}
 
@@ -333,14 +336,30 @@ func HandleRegenerateSyncToken(c *gin.Context) {
 var slaveID int64 = 0
 var lastSyncVersion int = 0
 
+// master connection state (for slave mode UI)
+var masterConnected bool = false
+var masterLastContact time.Time
+
+func setMasterConnected(v bool) {
+	masterConnected = v
+	if v {
+		masterLastContact = time.Now().UTC()
+	}
+}
+
+// getMasterURL constructs the master API URL from host and port
+func getMasterURL() string {
+	return fmt.Sprintf("http://%s:%d", masterAPIHost, masterAPIPort)
+}
+
 // StartSlaveSync starts the sync goroutine for slave mode
 func StartSlaveSync() {
-	if serverRole != "slave" || masterHost == "" || masterToken == "" {
-		slog.Info("Slave sync not started", "role", serverRole, "master_host", masterHost)
+	if serverRole != "slave" || masterAPIHost == "" || masterToken == "" {
+		slog.Info("Slave sync not started", "role", serverRole, "master_host", masterAPIHost)
 		return
 	}
 
-	slog.Info("Starting slave sync", "master", masterHost, "interval", syncInterval)
+	slog.Info("Starting slave sync", "master", getMasterURL(), "interval", syncInterval)
 
 	// Register with master
 	if err := registerWithMaster(); err != nil {
@@ -372,7 +391,7 @@ func StartSlaveSync() {
 }
 
 func registerWithMaster() error {
-	url := strings.TrimSuffix(masterHost, "/") + "/api/sync/register"
+	url := getMasterURL() + "/api/sync/register"
 
 	// Get our hostname
 	hostname := "slave"
@@ -392,12 +411,14 @@ func registerWithMaster() error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		setMasterConnected(false)
 		return fmt.Errorf("failed to connect to master: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		setMasterConnected(false)
 		return fmt.Errorf("registration failed: %s - %s", resp.Status, string(bodyBytes))
 	}
 
@@ -409,6 +430,7 @@ func registerWithMaster() error {
 	}
 
 	slaveID = result.SlaveID
+	setMasterConnected(true)
 	slog.Info("Registered with master", "slave_id", slaveID)
 	return nil
 }
@@ -418,7 +440,7 @@ func sendHeartbeat() error {
 		return registerWithMaster()
 	}
 
-	url := fmt.Sprintf("%s/api/sync/heartbeat?slave_id=%d", strings.TrimSuffix(masterHost, "/"), slaveID)
+	url := fmt.Sprintf("%s/api/sync/heartbeat?slave_id=%d", getMasterURL(), slaveID)
 
 	req, err := http.NewRequest("POST", url, nil)
 	if err != nil {
@@ -430,20 +452,23 @@ func sendHeartbeat() error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		setMasterConnected(false)
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
+		setMasterConnected(false)
 		return fmt.Errorf("heartbeat failed: %s", resp.Status)
 	}
 
+	setMasterConnected(true)
 	return nil
 }
 
 func syncFromMaster() error {
 	url := fmt.Sprintf("%s/api/sync/zones?slave_id=%d&since_version=%d",
-		strings.TrimSuffix(masterHost, "/"), slaveID, lastSyncVersion)
+		getMasterURL(), slaveID, lastSyncVersion)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -455,19 +480,25 @@ func syncFromMaster() error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		setMasterConnected(false)
 		return fmt.Errorf("failed to connect to master: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		setMasterConnected(false)
 		return fmt.Errorf("sync failed: %s - %s", resp.Status, string(bodyBytes))
 	}
 
 	var syncResp SyncResponse
 	if err := json.NewDecoder(resp.Body).Decode(&syncResp); err != nil {
+		setMasterConnected(false)
 		return err
 	}
+
+	// We successfully contacted the master
+	setMasterConnected(true)
 
 	if len(syncResp.Zones) == 0 {
 		slog.Debug("No zones to sync")
