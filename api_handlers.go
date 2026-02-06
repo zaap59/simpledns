@@ -99,6 +99,9 @@ func handleAPICreateZone(c *gin.Context) {
 	}
 
 	slog.Info("Zone created", "name", zone.Name, "id", zone.ID)
+	// Push new zone to slaves
+	go pushZoneToAllSlaves(zone.ID)
+
 	c.JSON(http.StatusCreated, zone)
 }
 
@@ -193,6 +196,9 @@ func handleAPIUpdateZone(c *gin.Context) {
 	}
 
 	slog.Info("Zone updated", "name", zone.Name, "id", zone.ID)
+	// Push updated zone to slaves
+	go pushZoneToAllSlaves(id)
+
 	c.JSON(http.StatusOK, zone)
 }
 
@@ -254,6 +260,9 @@ func handleAPIDeleteZone(c *gin.Context) {
 	}
 
 	slog.Info("Zone deleted", "name", zone.Name, "id", id)
+	// Notify slaves of deletions via zone list push
+	go pushZoneListToAllSlaves()
+
 	c.JSON(http.StatusOK, gin.H{"message": "zone deleted"})
 }
 
@@ -304,6 +313,9 @@ func handleAPICreateRecord(c *gin.Context) {
 	}
 
 	slog.Info("Record created", "name", record.Name, "type", record.Type, "id", record.ID)
+	// Push updated zone to slaves
+	go pushZoneToAllSlaves(zoneID)
+
 	c.JSON(http.StatusCreated, record)
 }
 
@@ -371,6 +383,9 @@ func handleAPIUpdateRecord(c *gin.Context) {
 	}
 
 	slog.Info("Record updated", "name", record.Name, "type", record.Type, "id", record.ID)
+	// Push updated zone to slaves
+	go pushZoneToAllSlaves(existing.ZoneID)
+
 	c.JSON(http.StatusOK, record)
 }
 
@@ -400,6 +415,12 @@ func handleAPIDeleteRecord(c *gin.Context) {
 	}
 
 	slog.Info("Record deleted", "name", record.Name, "id", id)
+	slog.Info("Record deleted", "name", record.Name, "id", id)
+	// Push updated zone to slaves
+	if record.ZoneID > 0 {
+		go pushZoneToAllSlaves(record.ZoneID)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "record deleted"})
 }
 
@@ -656,5 +677,102 @@ func registerAPIRoutes(router *gin.Engine) {
 		api.POST("/forwarders", handleAPICreateForwarder)
 		api.GET("/forwarders", handleAPIListForwarders)
 		api.DELETE("/forwarders/:id", handleAPIDeleteForwarder)
+
+		// Slave management (master only, requires auth)
+		api.GET("/slaves", HandleGetSlaves)
+		api.DELETE("/slaves/:id", HandleDeleteSlave)
+		api.GET("/sync/token", HandleGetSyncToken)
+		api.POST("/sync/token/regenerate", HandleRegenerateSyncToken)
 	}
+
+	// Sync API (uses sync token, not regular auth)
+	syncApi := router.Group("/api/sync")
+	syncApi.Use(ValidateSyncToken())
+	{
+		syncApi.POST("/register", HandleSyncRegister)
+		syncApi.POST("/heartbeat", HandleSyncHeartbeat)
+		syncApi.GET("/zones", HandleSyncZones)
+	}
+
+	// Replication endpoints for slaves (master will push to these)
+	repl := router.Group("/api/replication")
+	repl.Use(ValidateSyncToken())
+	{
+		repl.POST("/push", HandlePushZones)
+		repl.GET("/status", HandleReplicationStatus)
+	}
+}
+
+// HandlePushZones receives pushed zone data from master (slave only)
+func HandlePushZones(c *gin.Context) {
+	if serverRole != "slave" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "this server is not a slave"})
+		return
+	}
+
+	var syncResp SyncResponse
+	if err := c.ShouldBindJSON(&syncResp); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	// Apply zones
+	for _, sd := range syncResp.Zones {
+		if err := applyZoneSync(sd); err != nil {
+			slog.Warn("failed to apply pushed zone", "zone", sd.Zone.Name, "error", err)
+		}
+	}
+
+	// Reconcile deletions if master provided zone names
+	if len(syncResp.ZoneNames) > 0 {
+		masterSet := make(map[string]struct{}, len(syncResp.ZoneNames))
+		for _, n := range syncResp.ZoneNames {
+			masterSet[n] = struct{}{}
+		}
+
+		localZones, err := database.ListZones()
+		if err == nil {
+			for _, lz := range localZones {
+				if _, ok := masterSet[lz.Name]; !ok {
+					if derr := database.DeleteZone(lz.ID); derr == nil {
+						slog.Info("Deleted local zone not present on master (push)", "zone", lz.Name)
+					} else {
+						slog.Warn("Failed to delete local zone during push reconciliation", "zone", lz.Name, "error", derr)
+					}
+				}
+			}
+		}
+	}
+
+	// Reload DB into memory
+	if err := ReloadFromDB(); err != nil {
+		slog.Warn("failed to reload zones after push", "error", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// HandleReplicationStatus returns local zone versions for master to poll
+func HandleReplicationStatus(c *gin.Context) {
+	if serverRole != "slave" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "this server is not a slave"})
+		return
+	}
+
+	zones, err := database.ListZones()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list zones"})
+		return
+	}
+
+	type Z struct {
+		Name    string `json:"name"`
+		Version int    `json:"version"`
+	}
+	zs := make([]Z, 0, len(zones))
+	for _, z := range zones {
+		zs = append(zs, Z{Name: z.Name, Version: z.Version})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"zone_count": len(zs), "zones": zs})
 }
