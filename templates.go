@@ -294,7 +294,7 @@ const sidebarHTML = `{{define "sidebar"}}
 
             <div class="mt-auto px-4 py-4 border-t border-gray-200 dark:border-gray-800">
                 <div class="flex items-center justify-between text-sm text-gray-400">
-                    <span>Mode: {{.Mode}}</span>
+                    <span>Version {{.Version}} • Mode: {{.Mode}}</span>
                     <a href="/api/health" class="hover:text-gray-900 dark:hover:text-white">API</a>
                 </div>
             </div>
@@ -1482,6 +1482,9 @@ const loginHTML = `<!DOCTYPE html>
                     <span class="text-sm">Light Mode</span>
                 </span>
             </button>
+            <div class="mt-4 text-xs text-gray-400 dark:text-gray-500">
+                Version: {{.Version}}
+            </div>
         </div>
     </div>
 </body>

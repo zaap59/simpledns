@@ -1,12 +1,13 @@
 # Stage 1: Builder
 FROM golang:1.24-alpine AS build
+ARG VERSION=edge
 
 WORKDIR /app
 
 COPY . .
 
 RUN go mod download && \
-    go build -o simpledns .
+    go build -o simpledns -X main.version=$VERSION .
 
 # Stage 2: Runtime
 FROM scratch
