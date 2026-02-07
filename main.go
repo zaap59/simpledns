@@ -73,6 +73,11 @@ type AppConfig struct {
 	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
 }
 
+type ForwarderDisplay struct {
+	Address string
+	Display string
+}
+
 func loadAppConfig(path string) (*AppConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -480,6 +485,46 @@ func handleWebSettings(c *gin.Context) {
 	}
 }
 
+func handleWebForwarders(c *gin.Context) {
+	tmpl := template.Must(template.New("forwarders").Parse(headerHTML + sidebarHTML + forwardersHTML))
+
+	// Prepare forwarders for display
+	forwarderDisplays := make([]ForwarderDisplay, 0, len(forwarders))
+	for _, f := range forwarders {
+		display := f
+		if strings.HasSuffix(f, ":53") {
+			display = strings.TrimSuffix(f, ":53")
+		}
+		forwarderDisplays = append(forwarderDisplays, ForwarderDisplay{
+			Address: f,
+			Display: display,
+		})
+	}
+
+	data := struct {
+		Mode              string
+		EditMode          bool
+		Forwarders        []string
+		ForwarderDisplays []ForwarderDisplay
+		CurrentPath       string
+		PageTitle         string
+		ShowSetupButton   bool
+	}{
+		Mode:              dbMode,
+		EditMode:          dbMode == "sqlite",
+		Forwarders:        forwarders,
+		ForwarderDisplays: forwarderDisplays,
+		CurrentPath:       "/forwarders",
+		PageTitle:         "Forwarders",
+		ShowSetupButton:   true,
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
 func handleAPIZones(c *gin.Context) {
 	c.JSON(http.StatusOK, getZonesInfo())
 }
@@ -550,6 +595,7 @@ func startWebServer(port int) *http.Server {
 	{
 		protected.GET("/", handleWebIndex)
 		protected.GET("/settings", handleWebSettings)
+		protected.GET("/forwarders", handleWebForwarders)
 		protected.GET("/account", handleAccount)
 		protected.POST("/account", handleAccount)
 		protected.POST("/account/tokens", handleCreateAPIToken)
@@ -722,7 +768,7 @@ func main() {
 		if !zonesDirFlag.set && cfgApp.ZonesDir != "" {
 			zonesDirFlag.value = cfgApp.ZonesDir
 		}
-		if !forwardersFlag.set && cfgApp.Forwarders != nil {
+		if !forwardersFlag.set && cfgApp.Forwarders != nil && dbMode != "sqlite" {
 			parsed := make([]string, 0, len(cfgApp.Forwarders))
 			for _, p := range cfgApp.Forwarders {
 				if p == "" {

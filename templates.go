@@ -243,6 +243,14 @@ const sidebarHTML = `{{define "sidebar"}}
                                 </a>
                             </li>
                             <li>
+                                <a href="/forwarders" class="flex items-center gap-3 px-4 py-3 rounded-lg {{if eq .CurrentPath "/forwarders"}}bg-brand-600 text-white{{else}}text-gray-300 hover:bg-white/5 hover:text-white{{end}}">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
+                                    </svg>
+                                    <span>Forwarders</span>
+                                </a>
+                            </li>
+                            <li>
                                 <a href="/settings" class="flex items-center gap-3 px-4 py-3 rounded-lg {{if eq .CurrentPath "/settings"}}bg-brand-600 text-white{{else}}text-gray-300 hover:bg-white/5 hover:text-white{{end}}">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -1110,59 +1118,8 @@ const globalSettingsHTML = `<!DOCTYPE html>
 
             <!-- Main Content -->
             <main class="p-4 md:p-6 2xl:p-10">
-                <!-- Forwarders Section -->
-                <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
-                    <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-                        <div>
-                            <h3 class="text-lg font-semibold">DNS Forwarders</h3>
-                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure upstream DNS servers for queries that don't match any local zone</p>
-                        </div>
-                        {{if .EditMode}}
-                        <button onclick="showAddForwarderModal()" class="flex items-center gap-2 px-4 py-2 text-sm bg-brand-600 text-white hover:bg-brand-700 rounded-lg transition-colors">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                            </svg>
-                            Add Forwarder
-                        </button>
-                        {{end}}
-                    </div>
-                    <div class="p-5">
-                        {{if .Forwarders}}
-                        <div class="space-y-3" id="forwarders-list">
-                            {{range .Forwarders}}
-                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg" data-forwarder="{{.}}">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-900/20">
-                                        <svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
-                                        </svg>
-                                    </div>
-                                    <span class="font-mono text-sm">{{.}}</span>
-                                </div>
-                                {{if $.EditMode}}
-                                <button onclick="deleteForwarder('{{.}}', this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                    </svg>
-                                </button>
-                                {{end}}
-                            </div>
-                            {{end}}
-                        </div>
-                        {{else}}
-                        <div class="text-center py-10">
-                            <svg class="mx-auto w-12 h-12 mb-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
-                            <p class="text-gray-500 dark:text-gray-400">No forwarders configured</p>
-                            <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Add a forwarder to resolve external DNS queries</p>
-                        </div>
-                        {{end}}
-                    </div>
-                </div>
-
                 <!-- Server Info Section -->
-                <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] mt-6">
+                <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
                     <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
                         <h3 class="text-lg font-semibold">Server Information</h3>
                     </div>
@@ -1217,6 +1174,96 @@ const globalSettingsHTML = `<!DOCTYPE html>
         </div>
     </div>
 
+` + configModalHTML + `
+</body>
+</html>
+`
+
+// Forwarders page template
+const forwardersHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>SimpleDNS - Forwarders</title>
+` + headHTML + `
+</head>
+<body x-data="{ sidebarOpen: false, darkMode: localStorage.getItem('darkMode') === 'true' }" 
+      x-init="$watch('darkMode', val => { localStorage.setItem('darkMode', val); document.documentElement.classList.toggle('dark', val) }); document.documentElement.classList.toggle('dark', darkMode)"
+      class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white/90 font-sans">
+    
+    <div class="flex h-screen overflow-hidden">
+        {{template "sidebar" .}}
+
+        <!-- Content Area -->
+        <div class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
+            
+            <div x-show="sidebarOpen" @click="sidebarOpen = false" 
+                 class="fixed inset-0 z-40 bg-black/50 lg:hidden" x-cloak></div>
+
+            {{template "header" .}}
+
+            <!-- Main Content -->
+            <main class="p-4 md:p-6 2xl:p-10">
+                <!-- Forwarders Section -->
+                <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
+                    <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                        <div>
+                            <h3 class="text-lg font-semibold">DNS Forwarders</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Configure upstream DNS servers for queries that don't match any local zone</p>
+                        </div>
+                        {{if and .EditMode (lt (len .Forwarders) 2)}}
+                        <button onclick="showAddForwarderModal()" class="flex items-center gap-2 px-4 py-2 text-sm bg-brand-600 text-white hover:bg-brand-700 rounded-lg transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Add Forwarder
+                        </button>
+                        {{else if and .EditMode (ge (len .Forwarders) 2)}}
+                        <div class="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                            </svg>
+                            Maximum 2 forwarders allowed
+                        </div>
+                        {{end}}
+                    </div>
+                    <div class="p-5">
+                        {{if .Forwarders}}
+                        <div class="space-y-3" id="forwarders-list">
+                            {{range .ForwarderDisplays}}
+                            <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg" data-forwarder="{{.Address}}">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 dark:bg-brand-900/20">
+                                        <svg class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
+                                        </svg>
+                                    </div>
+                                    <span class="font-mono text-sm">{{.Display}}</span>
+                                </div>
+                                {{if $.EditMode}}
+                                <button onclick="deleteForwarder('{{.Address}}', this)" class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                                {{end}}
+                            </div>
+                            {{end}}
+                        </div>
+                        {{else}}
+                        <div class="text-center py-10">
+                            <svg class="mx-auto w-12 h-12 mb-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                            <p class="text-gray-500 dark:text-gray-400">No forwarders configured</p>
+                            <p class="text-sm text-gray-400 dark:text-gray-500 mt-1">Add a forwarder to resolve external DNS queries</p>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
     {{if .EditMode}}
     <!-- Add Forwarder Modal -->
     <div id="addForwarderModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
@@ -1253,6 +1300,14 @@ const globalSettingsHTML = `<!DOCTYPE html>
         async function submitForwarder(event) {
             event.preventDefault();
             const form = event.target;
+            
+            // Check if we already have 2 forwarders (client-side validation)
+            const currentForwarders = document.querySelectorAll('[data-forwarder]');
+            if (currentForwarders.length >= 2) {
+                alert('Maximum 2 forwarders allowed');
+                return;
+            }
+            
             let address = form.address.value.trim();
             if (!address.includes(':')) address = address + ':53';
             try {
@@ -1324,8 +1379,8 @@ const loginHTML = `<!DOCTYPE html>
                 
                 <div>
                     <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
-                    <input type="text" id="username" name="username" value="admin" 
-                           class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
+                    <input type="text" id="username" name="username" value="admin" readonly
+                           class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed focus:ring-0 focus:border-gray-300 dark:focus:border-gray-600 outline-none transition"
                            required>
                 </div>
 

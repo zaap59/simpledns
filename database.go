@@ -558,13 +558,10 @@ func LoadForwardersFromDB() error {
 		return err
 	}
 
-	// Only override if there are forwarders in the database
-	// Otherwise keep the ones from config file
-	if len(dbForwarders) > 0 {
-		forwarders = make([]string, 0, len(dbForwarders))
-		for _, f := range dbForwarders {
-			forwarders = append(forwarders, f.Address)
-		}
+	// Set forwarders from database (empty if none)
+	forwarders = make([]string, 0, len(dbForwarders))
+	for _, f := range dbForwarders {
+		forwarders = append(forwarders, f.Address)
 	}
 
 	return nil
