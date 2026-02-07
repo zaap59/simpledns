@@ -12,7 +12,17 @@ forward_timeout_seconds: 2
 
 # DNS server configuration
 dns_port: 53
+
+# Server role: "master" (default) or "slave"
+# - master: primary DNS server, zones can be modified
+# - slave: secondary DNS server, syncs zones from master
 server_role: master
+
+# Slave sync configuration (only used when server_role is "slave")
+# master_api_host: 192.168.1.1   # IP address of the master server (no http://)
+# master_api_port: 8080          # API port of the master server (default: 8080)
+# master_token: YOUR_SYNC_TOKEN_FROM_MASTER
+# sync_interval_seconds: 30
 
 # Web interface configuration
 web_enabled: true
