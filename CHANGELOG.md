@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/zaap59/simpledns/compare/v0.1.0...v0.2.0) (2026-02-07)
+
+
+### Features
+
+* add flag port ([#13](https://github.com/zaap59/simpledns/issues/13)) ([ad7b413](https://github.com/zaap59/simpledns/commit/ad7b413a62dd810b2a1500419041390909251477))
+* add forwarders page ([#13](https://github.com/zaap59/simpledns/issues/13)) ([ad7b413](https://github.com/zaap59/simpledns/commit/ad7b413a62dd810b2a1500419041390909251477))
+* add interface web ([#11](https://github.com/zaap59/simpledns/issues/11)) ([fabca8f](https://github.com/zaap59/simpledns/commit/fabca8f1da244a95720dfb6d9a8109742524e036))
+* add server_role config ([#14](https://github.com/zaap59/simpledns/issues/14)) ([f0466b7](https://github.com/zaap59/simpledns/commit/f0466b73778b57959ed025f0f2cb5aeb1abcd95a))
+* change config json to yaml ([#9](https://github.com/zaap59/simpledns/issues/9)) ([e169cbc](https://github.com/zaap59/simpledns/commit/e169cbc360c5c690f3fd07e056a6338522a2f3e3))
+* change settings to infos page ([#13](https://github.com/zaap59/simpledns/issues/13)) ([ad7b413](https://github.com/zaap59/simpledns/commit/ad7b413a62dd810b2a1500419041390909251477))
+* rename domains to zones ([#14](https://github.com/zaap59/simpledns/issues/14)) ([f0466b7](https://github.com/zaap59/simpledns/commit/f0466b73778b57959ed025f0f2cb5aeb1abcd95a))
+
 ## 0.1.0 (2026-02-04)
 
 
