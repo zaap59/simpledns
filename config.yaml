@@ -10,6 +10,5 @@ forwarders:
   - 1.0.0.1
 forward_timeout_seconds: 2
 
-# Web interface configuration
-web_enabled: true
-web_port: 8080
+# DNS server configuration
+dns_port: 53

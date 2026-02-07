@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -36,6 +37,23 @@ type stringFlag struct {
 
 func (s *stringFlag) Set(v string) error { s.value = v; s.set = true; return nil }
 func (s *stringFlag) String() string     { return s.value }
+
+// flag types that track whether they were set on the command line
+type intFlag struct {
+	value int
+	set   bool
+}
+
+func (i *intFlag) Set(v string) error {
+	val, err := strconv.Atoi(v)
+	if err != nil {
+		return err
+	}
+	i.value = val
+	i.set = true
+	return nil
+}
+func (i *intFlag) String() string { return strconv.Itoa(i.value) }
 
 // YAML Zone structures
 type YAMLZoneConfig struct {
@@ -71,6 +89,7 @@ type AppConfig struct {
 	Addr              string   `yaml:"addr" json:"addr,omitempty"`
 	WebEnabled        bool     `yaml:"web_enabled" json:"web_enabled,omitempty"`
 	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
+	DNSPort           int      `yaml:"dns_port" json:"dns_port,omitempty"`
 }
 
 type ForwarderDisplay struct {
@@ -719,13 +738,16 @@ func main() {
 	var forwardersFlag stringFlag
 	var configFileFlag stringFlag
 	var logLevelFlag string
+	var dnsPortFlag intFlag
 
 	// register flags with defaults
 	configFileFlag.value = "config.yaml"
 	zonesDirFlag.value = "zones"
+	dnsPortFlag.value = 53
 	flag.Var(&configFileFlag, "config-file", "path to the configuration file (YAML format)")
 	flag.Var(&zonesDirFlag, "zones-dir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
+	flag.Var(&dnsPortFlag, "port", "DNS server port (default 53)")
 	flag.StringVar(&logLevelFlag, "log-level", "info", "log level (debug, info, warn, error)")
 	flag.Parse()
 
@@ -750,6 +772,8 @@ func main() {
 
 	slog.Info("Starting simple DNS server")
 
+	// DNS server config (defaults)
+	dnsPort := 53
 	// Web server config (defaults)
 	webEnabled := false
 	webPort := 8080
@@ -789,11 +813,17 @@ func main() {
 		if cfgApp.WebPort > 0 {
 			webPort = cfgApp.WebPort
 		}
+		if cfgApp.DNSPort > 0 {
+			dnsPort = cfgApp.DNSPort
+		}
 	}
 
 	// CLI flags override config
 	if forwardersFlag.set {
 		forwarders = parseForwarders(forwardersFlag.value)
+	}
+	if dnsPortFlag.set {
+		dnsPort = dnsPortFlag.value
 	}
 
 	if forwarders == nil {
@@ -838,8 +868,8 @@ func main() {
 
 	dns.HandleFunc(".", handleDNS)
 
-	udpServer := &dns.Server{Addr: ":53", Net: "udp"}
-	tcpServer := &dns.Server{Addr: ":53", Net: "tcp"}
+	udpServer := &dns.Server{Addr: fmt.Sprintf(":%d", dnsPort), Net: "udp"}
+	tcpServer := &dns.Server{Addr: fmt.Sprintf(":%d", dnsPort), Net: "tcp"}
 
 	// Start web server if enabled
 	var webServer *http.Server
