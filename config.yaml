@@ -4,11 +4,12 @@
 db_type: sqlite
 db_path: simpledns.db
 
-zones_dir: zones
-forwarders:
-  - 1.1.1.1
-  - 1.0.0.1
-forward_timeout_seconds: 2
+# Zones directory (used in "files" mode)
+# zones_dir: zones
+# forwarders:
+#   - 1.1.1.1
+#   - 1.0.0.1
+# forward_timeout_seconds: 2
 
 # DNS server configuration
 dns_port: 53
