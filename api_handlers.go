@@ -662,5 +662,7 @@ func registerAPIRoutes(router *gin.Engine) {
 		api.POST("/forwarders", handleAPICreateForwarder)
 		api.GET("/forwarders", handleAPIListForwarders)
 		api.DELETE("/forwarders/:id", handleAPIDeleteForwarder)
+
+		// Replication (token support removed)
 	}
 }

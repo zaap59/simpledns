@@ -396,8 +396,8 @@ func handleWebIndex(c *gin.Context) {
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
 		DNSPort:         dnsPort,
-		CurrentPath:     "/",
-		PageTitle:       "Dashboard",
+		CurrentPath:     "/domains",
+		PageTitle:       "Domains",
 		ShowSetupButton: true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -502,8 +502,8 @@ func handleWebSettings(c *gin.Context) {
 		Forwarders:      forwarders,
 		DNSPort:         dnsPort,
 		ServerRole:      serverRole,
-		CurrentPath:     "/infos",
-		PageTitle:       "Settings",
+		CurrentPath:     "/",
+		PageTitle:       "Overview",
 		ShowSetupButton: true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -545,6 +545,30 @@ func handleWebForwarders(c *gin.Context) {
 		CurrentPath:       "/forwarders",
 		PageTitle:         "Forwarders",
 		ShowSetupButton:   true,
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleWebReplication(c *gin.Context) {
+	tmpl := template.Must(template.New("replication").Parse(headerHTML + sidebarHTML + replicationHTML))
+	data := struct {
+		Mode            string
+		EditMode        bool
+		ServerRole      string
+		CurrentPath     string
+		PageTitle       string
+		ShowSetupButton bool
+	}{
+		Mode:            dbMode,
+		EditMode:        dbMode == "sqlite",
+		ServerRole:      serverRole,
+		CurrentPath:     "/replication",
+		PageTitle:       "Replication",
+		ShowSetupButton: true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -621,9 +645,12 @@ func startWebServer(port int) *http.Server {
 	protected := router.Group("/")
 	protected.Use(AuthMiddleware())
 	{
-		protected.GET("/", handleWebIndex)
+		protected.GET("/domains", handleWebIndex)
+		// Serve overview at root
+		protected.GET("/", handleWebSettings)
 		protected.GET("/infos", handleWebSettings)
 		protected.GET("/forwarders", handleWebForwarders)
+		protected.GET("/replication", handleWebReplication)
 		protected.GET("/account", handleAccount)
 		protected.POST("/account", handleAccount)
 		protected.POST("/account/tokens", handleCreateAPIToken)
@@ -828,6 +855,7 @@ func main() {
 		if cfgApp.ServerRole != "" {
 			serverRole = cfgApp.ServerRole
 		}
+
 	}
 
 	// CLI flags override config
