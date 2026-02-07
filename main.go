@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -27,6 +28,7 @@ var forwarders []string
 var forwardTimeout time.Duration = 2 * time.Second
 var loadedZoneNames []string
 var dbMode string = "files" // "files" or "sqlite"
+var dnsPort int = 53
 
 // flag types that track whether they were set on the command line
 type stringFlag struct {
@@ -36,6 +38,23 @@ type stringFlag struct {
 
 func (s *stringFlag) Set(v string) error { s.value = v; s.set = true; return nil }
 func (s *stringFlag) String() string     { return s.value }
+
+// flag types that track whether they were set on the command line
+type intFlag struct {
+	value int
+	set   bool
+}
+
+func (i *intFlag) Set(v string) error {
+	val, err := strconv.Atoi(v)
+	if err != nil {
+		return err
+	}
+	i.value = val
+	i.set = true
+	return nil
+}
+func (i *intFlag) String() string { return strconv.Itoa(i.value) }
 
 // YAML Zone structures
 type YAMLZoneConfig struct {
@@ -71,6 +90,12 @@ type AppConfig struct {
 	Addr              string   `yaml:"addr" json:"addr,omitempty"`
 	WebEnabled        bool     `yaml:"web_enabled" json:"web_enabled,omitempty"`
 	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
+	DNSPort           int      `yaml:"dns_port" json:"dns_port,omitempty"`
+}
+
+type ForwarderDisplay struct {
+	Address string
+	Display string
 }
 
 func loadAppConfig(path string) (*AppConfig, error) {
@@ -357,6 +382,7 @@ func handleWebIndex(c *gin.Context) {
 		Mode            string
 		EditMode        bool
 		Forwarders      []string
+		DNSPort         int
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -367,6 +393,7 @@ func handleWebIndex(c *gin.Context) {
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
+		DNSPort:         dnsPort,
 		CurrentPath:     "/",
 		PageTitle:       "Dashboard",
 		ShowSetupButton: true,
@@ -462,6 +489,7 @@ func handleWebSettings(c *gin.Context) {
 		Mode            string
 		EditMode        bool
 		Forwarders      []string
+		DNSPort         int
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -469,9 +497,50 @@ func handleWebSettings(c *gin.Context) {
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
-		CurrentPath:     "/settings",
+		DNSPort:         dnsPort,
+		CurrentPath:     "/infos",
 		PageTitle:       "Settings",
 		ShowSetupButton: true,
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(c.Writer, data); err != nil {
+		slog.Error("failed to render template", "error", err)
+		c.String(http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func handleWebForwarders(c *gin.Context) {
+	tmpl := template.Must(template.New("forwarders").Parse(headerHTML + sidebarHTML + forwardersHTML))
+
+	// Prepare forwarders for display
+	forwarderDisplays := make([]ForwarderDisplay, 0, len(forwarders))
+	for _, f := range forwarders {
+		display := f
+		if strings.HasSuffix(f, ":53") {
+			display = strings.TrimSuffix(f, ":53")
+		}
+		forwarderDisplays = append(forwarderDisplays, ForwarderDisplay{
+			Address: f,
+			Display: display,
+		})
+	}
+
+	data := struct {
+		Mode              string
+		EditMode          bool
+		Forwarders        []string
+		ForwarderDisplays []ForwarderDisplay
+		CurrentPath       string
+		PageTitle         string
+		ShowSetupButton   bool
+	}{
+		Mode:              dbMode,
+		EditMode:          dbMode == "sqlite",
+		Forwarders:        forwarders,
+		ForwarderDisplays: forwarderDisplays,
+		CurrentPath:       "/forwarders",
+		PageTitle:         "Forwarders",
+		ShowSetupButton:   true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -549,7 +618,8 @@ func startWebServer(port int) *http.Server {
 	protected.Use(AuthMiddleware())
 	{
 		protected.GET("/", handleWebIndex)
-		protected.GET("/settings", handleWebSettings)
+		protected.GET("/infos", handleWebSettings)
+		protected.GET("/forwarders", handleWebForwarders)
 		protected.GET("/account", handleAccount)
 		protected.POST("/account", handleAccount)
 		protected.POST("/account/tokens", handleCreateAPIToken)
@@ -673,13 +743,16 @@ func main() {
 	var forwardersFlag stringFlag
 	var configFileFlag stringFlag
 	var logLevelFlag string
+	var dnsPortFlag intFlag
 
 	// register flags with defaults
 	configFileFlag.value = "config.yaml"
 	zonesDirFlag.value = "zones"
+	dnsPortFlag.value = 53
 	flag.Var(&configFileFlag, "config-file", "path to the configuration file (YAML format)")
 	flag.Var(&zonesDirFlag, "zones-dir", "directory containing zone files (YAML format)")
 	flag.Var(&forwardersFlag, "forwarders", "comma-separated upstream DNS servers (host[:port], default port 53)")
+	flag.Var(&dnsPortFlag, "port", "DNS server port (default 53)")
 	flag.StringVar(&logLevelFlag, "log-level", "info", "log level (debug, info, warn, error)")
 	flag.Parse()
 
@@ -704,6 +777,8 @@ func main() {
 
 	slog.Info("Starting simple DNS server")
 
+	// DNS server config (defaults)
+	// dnsPort is global, default 53
 	// Web server config (defaults)
 	webEnabled := false
 	webPort := 8080
@@ -722,7 +797,7 @@ func main() {
 		if !zonesDirFlag.set && cfgApp.ZonesDir != "" {
 			zonesDirFlag.value = cfgApp.ZonesDir
 		}
-		if !forwardersFlag.set && cfgApp.Forwarders != nil {
+		if !forwardersFlag.set && cfgApp.Forwarders != nil && dbMode != "sqlite" {
 			parsed := make([]string, 0, len(cfgApp.Forwarders))
 			for _, p := range cfgApp.Forwarders {
 				if p == "" {
@@ -743,11 +818,17 @@ func main() {
 		if cfgApp.WebPort > 0 {
 			webPort = cfgApp.WebPort
 		}
+		if cfgApp.DNSPort > 0 {
+			dnsPort = cfgApp.DNSPort
+		}
 	}
 
 	// CLI flags override config
 	if forwardersFlag.set {
 		forwarders = parseForwarders(forwardersFlag.value)
+	}
+	if dnsPortFlag.set {
+		dnsPort = dnsPortFlag.value
 	}
 
 	if forwarders == nil {
@@ -792,8 +873,8 @@ func main() {
 
 	dns.HandleFunc(".", handleDNS)
 
-	udpServer := &dns.Server{Addr: ":53", Net: "udp"}
-	tcpServer := &dns.Server{Addr: ":53", Net: "tcp"}
+	udpServer := &dns.Server{Addr: fmt.Sprintf(":%d", dnsPort), Net: "udp"}
+	tcpServer := &dns.Server{Addr: fmt.Sprintf(":%d", dnsPort), Net: "tcp"}
 
 	// Start web server if enabled
 	var webServer *http.Server

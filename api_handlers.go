@@ -567,6 +567,12 @@ func handleAPICreateForwarder(c *gin.Context) {
 		return
 	}
 
+	// Check if we already have 2 forwarders (maximum allowed)
+	if len(forwarders) >= 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum 2 forwarders allowed"})
+		return
+	}
+
 	forwarder := &DBForwarder{
 		Address:  req.Address,
 		Priority: req.Priority,
