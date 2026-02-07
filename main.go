@@ -30,6 +30,7 @@ var loadedZoneNames []string
 var dbMode string = "files" // "files" or "sqlite"
 var dnsPort int = 53
 var serverRole string = "master"
+var version = "dev" // Set at build time with -ldflags "-X main.version=1.0.0"
 
 // flag types that track whether they were set on the command line
 type stringFlag struct {
@@ -388,6 +389,7 @@ func handleWebIndex(c *gin.Context) {
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
+		Version         string
 	}{
 		Zones:           zones,
 		ZoneCount:       len(zones),
@@ -399,6 +401,7 @@ func handleWebIndex(c *gin.Context) {
 		CurrentPath:     "/zones",
 		PageTitle:       "Zones",
 		ShowSetupButton: true,
+		Version:         version,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -432,12 +435,14 @@ func handleWebZoneRecords(c *gin.Context) {
 		Mode        string
 		EditMode    bool
 		CurrentPath string
+		Version     string
 	}{
 		Zone:        zone,
 		AllZones:    zones,
 		Mode:        dbMode,
 		EditMode:    dbMode == "sqlite",
 		CurrentPath: "/zones",
+		Version:     version,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -471,12 +476,14 @@ func handleWebZoneSettings(c *gin.Context) {
 		Mode        string
 		EditMode    bool
 		CurrentPath string
+		Version     string
 	}{
 		Zone:        zone,
 		AllZones:    zones,
 		Mode:        dbMode,
 		EditMode:    dbMode == "sqlite",
 		CurrentPath: "/zones",
+		Version:     version,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -500,6 +507,7 @@ func handleWebSettings(c *gin.Context) {
 		ServerRole      string
 		ZoneCount       int
 		RecordCount     int
+		Version         string
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -511,6 +519,7 @@ func handleWebSettings(c *gin.Context) {
 		ServerRole:      serverRole,
 		ZoneCount:       len(zones),
 		RecordCount:     totalRecords,
+		Version:         version,
 		CurrentPath:     "/",
 		PageTitle:       "Overview",
 		ShowSetupButton: true,
@@ -546,6 +555,7 @@ func handleWebForwarders(c *gin.Context) {
 		CurrentPath       string
 		PageTitle         string
 		ShowSetupButton   bool
+		Version           string
 	}{
 		Mode:              dbMode,
 		EditMode:          dbMode == "sqlite",
@@ -554,6 +564,7 @@ func handleWebForwarders(c *gin.Context) {
 		CurrentPath:       "/forwarders",
 		PageTitle:         "Forwarders",
 		ShowSetupButton:   true,
+		Version:           version,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -571,6 +582,7 @@ func handleWebReplication(c *gin.Context) {
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
+		Version         string
 	}{
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
@@ -578,6 +590,7 @@ func handleWebReplication(c *gin.Context) {
 		CurrentPath:     "/replication",
 		PageTitle:       "Replication",
 		ShowSetupButton: true,
+		Version:         version,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(c.Writer, data); err != nil {
@@ -816,6 +829,7 @@ func main() {
 	slog.SetDefault(slog.New(handler))
 
 	slog.Info("Starting simple DNS server")
+	slog.Info("SimpleDNS version", "version", version)
 
 	// DNS server config (defaults)
 	// dnsPort is global, default 53

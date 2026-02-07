@@ -198,6 +198,7 @@ func handleLogin(c *gin.Context) {
 		if err := tmpl.Execute(c.Writer, gin.H{
 			"Redirect": redirect,
 			"Error":    "",
+			"Version":  version,
 		}); err != nil {
 			slog.Error("failed to render login template", "error", err)
 		}
@@ -218,6 +219,7 @@ func handleLogin(c *gin.Context) {
 		if err := tmpl.Execute(c.Writer, gin.H{
 			"Redirect": redirect,
 			"Error":    "Invalid username or password",
+			"Version":  version,
 		}); err != nil {
 			slog.Error("failed to render login template", "error", err)
 		}
@@ -232,6 +234,7 @@ func handleLogin(c *gin.Context) {
 		if err := tmpl.Execute(c.Writer, gin.H{
 			"Redirect": redirect,
 			"Error":    "Failed to create session",
+			"Version":  version,
 		}); err != nil {
 			slog.Error("failed to render login template", "error", err)
 		}
@@ -547,6 +550,7 @@ func handleAccount(c *gin.Context) {
 			"APITokens":       tokens,
 			"PageTitle":       "Account",
 			"ShowSetupButton": true,
+			"Version":         version,
 		}); err != nil {
 			slog.Error("failed to render account template", "error", err)
 		}
@@ -570,6 +574,7 @@ func handleAccount(c *gin.Context) {
 			"APITokens":       tokens,
 			"PageTitle":       "Account",
 			"ShowSetupButton": true,
+			"Version":         version,
 		}); err != nil {
 			slog.Error("failed to render account template", "error", err)
 		}
@@ -613,6 +618,7 @@ func handleAccount(c *gin.Context) {
 		"APITokens":       tokens,
 		"PageTitle":       "Account",
 		"ShowSetupButton": true,
+		"Version":         version,
 	}); err != nil {
 		slog.Error("failed to render account template", "error", err)
 	}
@@ -684,6 +690,7 @@ func handleListAPITokens(c *gin.Context) {
 		"APITokens":       tokens,
 		"PageTitle":       "API Tokens",
 		"ShowSetupButton": true,
+		"Version":         version,
 	}); err != nil {
 		slog.Error("failed to render tokens template", "error", err)
 	}
