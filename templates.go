@@ -251,12 +251,12 @@ const sidebarHTML = `{{define "sidebar"}}
                                 </a>
                             </li>
                             <li>
-                                <a href="/settings" class="flex items-center gap-3 px-4 py-3 rounded-lg {{if eq .CurrentPath "/settings"}}bg-brand-600 text-white{{else}}text-gray-300 hover:bg-white/5 hover:text-white{{end}}">
+                                <a href="/infos" class="flex items-center gap-3 px-4 py-3 rounded-lg {{if eq .CurrentPath "/infos"}}bg-brand-600 text-white{{else}}text-gray-300 hover:bg-white/5 hover:text-white{{end}}">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     </svg>
-                                    <span>Settings</span>
+                                    <span>Infos</span>
                                 </a>
                             </li>
                         </ul>
@@ -319,7 +319,7 @@ const indexHTML = `<!DOCTYPE html>
             <!-- Main Content -->
             <main class="p-4 md:p-6 2xl:p-10">
                 <!-- Stats Cards -->
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 mb-6">
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 mb-6">
                     <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
                         <div class="flex items-center gap-4">
                             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 dark:bg-brand-900/20">
@@ -339,17 +339,6 @@ const indexHTML = `<!DOCTYPE html>
                             <div>
                                 <span class="text-sm text-gray-500 dark:text-gray-400">Total Records</span>
                                 <h4 class="text-2xl font-bold">{{.RecordCount}}</h4>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03] p-5">
-                        <div class="flex items-center gap-4">
-                            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/20">
-                                <span class="text-2xl">🔄</span>
-                            </div>
-                            <div>
-                                <span class="text-sm text-gray-500 dark:text-gray-400">Forwarders</span>
-                                <h4 class="text-2xl font-bold">{{len .Forwarders}}</h4>
                             </div>
                         </div>
                     </div>
@@ -1121,10 +1110,10 @@ const globalSettingsHTML = `<!DOCTYPE html>
                 <!-- Server Info Section -->
                 <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-white/[0.03]">
                     <div class="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-                        <h3 class="text-lg font-semibold">Server Information</h3>
+                        <h3 class="text-lg font-semibold">Infos</h3>
                     </div>
                     <div class="p-5">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Server IP Address</label>
                                 <div class="flex items-center gap-2">
@@ -1137,6 +1126,10 @@ const globalSettingsHTML = `<!DOCTYPE html>
                                 </div>
                             </div>
                             <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">DNS Port</label>
+                                <p class="text-lg font-mono">{{.DNSPort}}</p>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Mode</label>
                                 <p class="text-lg font-mono">{{.Mode}}</p>
                             </div>
@@ -1144,10 +1137,6 @@ const globalSettingsHTML = `<!DOCTYPE html>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Forwarders Count</label>
                                 <p class="text-lg">{{len .Forwarders}}</p>
                             </div>
-                        </div>
-                        <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-700 rounded-lg">
-                            <h4 class="font-medium text-blue-800 dark:text-blue-200 mb-2">💡 How to use this DNS server</h4>
-                            <p class="text-sm text-blue-700 dark:text-blue-300">Configure your devices or network to use the Server IP Address shown above as your DNS server (port 53).</p>
                         </div>
                     </div>
                 </div>

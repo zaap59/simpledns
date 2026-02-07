@@ -28,6 +28,7 @@ var forwarders []string
 var forwardTimeout time.Duration = 2 * time.Second
 var loadedZoneNames []string
 var dbMode string = "files" // "files" or "sqlite"
+var dnsPort int = 53
 
 // flag types that track whether they were set on the command line
 type stringFlag struct {
@@ -381,6 +382,7 @@ func handleWebIndex(c *gin.Context) {
 		Mode            string
 		EditMode        bool
 		Forwarders      []string
+		DNSPort         int
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -391,6 +393,7 @@ func handleWebIndex(c *gin.Context) {
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
+		DNSPort:         dnsPort,
 		CurrentPath:     "/",
 		PageTitle:       "Dashboard",
 		ShowSetupButton: true,
@@ -486,6 +489,7 @@ func handleWebSettings(c *gin.Context) {
 		Mode            string
 		EditMode        bool
 		Forwarders      []string
+		DNSPort         int
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -493,7 +497,8 @@ func handleWebSettings(c *gin.Context) {
 		Mode:            dbMode,
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
-		CurrentPath:     "/settings",
+		DNSPort:         dnsPort,
+		CurrentPath:     "/infos",
 		PageTitle:       "Settings",
 		ShowSetupButton: true,
 	}
@@ -613,7 +618,7 @@ func startWebServer(port int) *http.Server {
 	protected.Use(AuthMiddleware())
 	{
 		protected.GET("/", handleWebIndex)
-		protected.GET("/settings", handleWebSettings)
+		protected.GET("/infos", handleWebSettings)
 		protected.GET("/forwarders", handleWebForwarders)
 		protected.GET("/account", handleAccount)
 		protected.POST("/account", handleAccount)
@@ -773,7 +778,7 @@ func main() {
 	slog.Info("Starting simple DNS server")
 
 	// DNS server config (defaults)
-	dnsPort := 53
+	// dnsPort is global, default 53
 	// Web server config (defaults)
 	webEnabled := false
 	webPort := 8080
