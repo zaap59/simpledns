@@ -12,6 +12,7 @@ forward_timeout_seconds: 2
 
 # DNS server configuration
 dns_port: 53
+server_role: master
 
 # Web interface configuration
 web_enabled: true

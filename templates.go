@@ -1113,7 +1113,7 @@ const globalSettingsHTML = `<!DOCTYPE html>
                         <h3 class="text-lg font-semibold">Infos</h3>
                     </div>
                     <div class="p-5">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Server IP Address</label>
                                 <div class="flex items-center gap-2">
@@ -1128,6 +1128,10 @@ const globalSettingsHTML = `<!DOCTYPE html>
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">DNS Port</label>
                                 <p class="text-lg font-mono">{{.DNSPort}}</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Server Role</label>
+                                <p class="text-lg font-mono">{{.ServerRole}}</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Mode</label>

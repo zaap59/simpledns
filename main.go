@@ -29,6 +29,7 @@ var forwardTimeout time.Duration = 2 * time.Second
 var loadedZoneNames []string
 var dbMode string = "files" // "files" or "sqlite"
 var dnsPort int = 53
+var serverRole string = "master"
 
 // flag types that track whether they were set on the command line
 type stringFlag struct {
@@ -91,6 +92,7 @@ type AppConfig struct {
 	WebEnabled        bool     `yaml:"web_enabled" json:"web_enabled,omitempty"`
 	WebPort           int      `yaml:"web_port" json:"web_port,omitempty"`
 	DNSPort           int      `yaml:"dns_port" json:"dns_port,omitempty"`
+	ServerRole        string   `yaml:"server_role" json:"server_role,omitempty"`
 }
 
 type ForwarderDisplay struct {
@@ -490,6 +492,7 @@ func handleWebSettings(c *gin.Context) {
 		EditMode        bool
 		Forwarders      []string
 		DNSPort         int
+		ServerRole      string
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -498,6 +501,7 @@ func handleWebSettings(c *gin.Context) {
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
 		DNSPort:         dnsPort,
+		ServerRole:      serverRole,
 		CurrentPath:     "/infos",
 		PageTitle:       "Settings",
 		ShowSetupButton: true,
@@ -820,6 +824,9 @@ func main() {
 		}
 		if cfgApp.DNSPort > 0 {
 			dnsPort = cfgApp.DNSPort
+		}
+		if cfgApp.ServerRole != "" {
+			serverRole = cfgApp.ServerRole
 		}
 	}
 
