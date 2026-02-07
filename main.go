@@ -396,8 +396,8 @@ func handleWebIndex(c *gin.Context) {
 		EditMode:        dbMode == "sqlite",
 		Forwarders:      forwarders,
 		DNSPort:         dnsPort,
-		CurrentPath:     "/domains",
-		PageTitle:       "Domains",
+		CurrentPath:     "/zones",
+		PageTitle:       "Zones",
 		ShowSetupButton: true,
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
@@ -487,12 +487,19 @@ func handleWebZoneSettings(c *gin.Context) {
 
 func handleWebSettings(c *gin.Context) {
 	tmpl := template.Must(template.New("settings").Parse(headerHTML + sidebarHTML + globalSettingsHTML))
+	zones := getZonesInfo()
+	totalRecords := 0
+	for _, z := range zones {
+		totalRecords += len(z.Records)
+	}
 	data := struct {
 		Mode            string
 		EditMode        bool
 		Forwarders      []string
 		DNSPort         int
 		ServerRole      string
+		ZoneCount       int
+		RecordCount     int
 		CurrentPath     string
 		PageTitle       string
 		ShowSetupButton bool
@@ -502,6 +509,8 @@ func handleWebSettings(c *gin.Context) {
 		Forwarders:      forwarders,
 		DNSPort:         dnsPort,
 		ServerRole:      serverRole,
+		ZoneCount:       len(zones),
+		RecordCount:     totalRecords,
 		CurrentPath:     "/",
 		PageTitle:       "Overview",
 		ShowSetupButton: true,
@@ -645,7 +654,7 @@ func startWebServer(port int) *http.Server {
 	protected := router.Group("/")
 	protected.Use(AuthMiddleware())
 	{
-		protected.GET("/domains", handleWebIndex)
+		protected.GET("/zones", handleWebIndex)
 		// Serve overview at root
 		protected.GET("/", handleWebSettings)
 		protected.GET("/infos", handleWebSettings)
