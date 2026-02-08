@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/miekg/dns"
+	_ "modernc.org/sqlite"
 )
 
 // Database holds the SQLite connection
@@ -58,7 +58,7 @@ var database *Database
 
 // InitDatabase initializes the SQLite database
 func InitDatabase(dbPath string) error {
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
