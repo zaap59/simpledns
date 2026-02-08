@@ -71,12 +71,53 @@ function hideConfigModal() {
 }
 
 function copyServerIP() {
-    navigator.clipboard.writeText(serverIPValue).then(() => {
-        const btn = event.currentTarget;
-        const originalHTML = btn.innerHTML;
-        btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
-        setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
-    });
+    const ip = serverIPValue;
+    
+    // Check if navigator and clipboard are available
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(ip).then(() => {
+            showCopyFeedback();
+        }).catch(err => {
+            console.warn('Clipboard API failed, trying fallback:', err);
+            fallbackCopy(ip);
+        });
+    } else {
+        // Fallback for older browsers or non-HTTPS
+        fallbackCopy(ip);
+    }
+}
+
+function fallbackCopy(text) {
+    // Create a temporary textarea element
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    
+    try {
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showCopyFeedback();
+        } else {
+            alert('Failed to copy IP address. Please copy manually: ' + text);
+        }
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        alert('Failed to copy IP address. Please copy manually: ' + text);
+    } finally {
+        document.body.removeChild(textArea);
+    }
+}
+
+function showCopyFeedback() {
+    const btn = event.currentTarget;
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+    setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
 }
 `
 
@@ -1184,9 +1225,45 @@ const globalSettingsHTML = `<!DOCTYPE html>
                     
                     function copyServerIP() {
                         const ip = document.getElementById('serverIP').textContent;
-                        navigator.clipboard.writeText(ip).then(() => {
-                            alert('IP copied: ' + ip);
-                        });
+                        
+                        // Try modern clipboard API first
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(ip).then(() => {
+                                alert('IP copied: ' + ip);
+                            }).catch(err => {
+                                console.warn('Clipboard API failed, trying fallback:', err);
+                                fallbackCopy(ip);
+                            });
+                        } else {
+                            // Fallback for older browsers or non-HTTPS
+                            fallbackCopy(ip);
+                        }
+                    }
+                    
+                    function fallbackCopy(text) {
+                        // Create a temporary textarea element
+                        const textArea = document.createElement('textarea');
+                        textArea.value = text;
+                        textArea.style.position = 'fixed';
+                        textArea.style.left = '-999999px';
+                        textArea.style.top = '-999999px';
+                        document.body.appendChild(textArea);
+                        
+                        try {
+                            textArea.focus();
+                            textArea.select();
+                            const successful = document.execCommand('copy');
+                            if (successful) {
+                                alert('IP copied: ' + text);
+                            } else {
+                                alert('Failed to copy IP address. Please copy manually: ' + text);
+                            }
+                        } catch (err) {
+                            console.error('Fallback copy failed:', err);
+                            alert('Failed to copy IP address. Please copy manually: ' + text);
+                        } finally {
+                            document.body.removeChild(textArea);
+                        }
                     }
                 </script>
             </main>
