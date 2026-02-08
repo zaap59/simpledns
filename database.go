@@ -56,6 +56,27 @@ type DBConfig struct {
 
 var database *Database
 
+// configureSQLite sets up SQLite pragmas for better performance and concurrency
+func (d *Database) configureSQLite() error {
+	pragmas := []string{
+		"PRAGMA journal_mode=WAL;",    // Write-Ahead Logging for better concurrency
+		"PRAGMA synchronous=NORMAL;",  // Balance between performance and safety
+		"PRAGMA cache_size=-64000;",   // 64MB cache
+		"PRAGMA busy_timeout=30000;",  // 30 second busy timeout
+		"PRAGMA temp_store=MEMORY;",   // Store temp tables in memory
+		"PRAGMA mmap_size=268435456;", // 256MB memory map
+		"PRAGMA foreign_keys=ON;",     // Enable foreign key constraints
+	}
+
+	for _, pragma := range pragmas {
+		if _, err := d.db.Exec(pragma); err != nil {
+			return fmt.Errorf("failed to execute pragma %s: %w", pragma, err)
+		}
+	}
+
+	return nil
+}
+
 // InitDatabase initializes the SQLite database
 func InitDatabase(dbPath string) error {
 	db, err := sql.Open("sqlite", dbPath)
@@ -63,7 +84,17 @@ func InitDatabase(dbPath string) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Configure connection pool
+	db.SetMaxOpenConns(10)   // Maximum open connections
+	db.SetMaxIdleConns(5)    // Maximum idle connections
+	db.SetConnMaxLifetime(0) // No limit on connection lifetime
+
 	database = &Database{db: db}
+
+	// Configure SQLite for better concurrency
+	if err := database.configureSQLite(); err != nil {
+		return fmt.Errorf("failed to configure database: %w", err)
+	}
 
 	// Create tables
 	if err := database.createTables(); err != nil {
