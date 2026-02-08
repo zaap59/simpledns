@@ -11,7 +11,7 @@ RUN go mod download && \
     go build -o simpledns -ldflags "-X main.version=${VERSION}" .
 
 # Stage 2: Runtime
-FROM gcr.io/distroless/base-debian13
+FROM scratch
 
 COPY --from=build /go/src/app/simpledns /simpledns
 
