@@ -88,8 +88,62 @@ go build -o simpledns .
 ./simpledns
 dig @127.0.0.1 -p 8053 example.local A
 ```
+## Docker
 
-**Format de configuration des zones:**
+Le projet peut être exécuté dans un conteneur Docker. L'image est automatiquement construite et publiée sur GitHub Container Registry.
+
+### Utilisation de base
+
+```bash
+# Utilisation avec docker-compose (recommandé)
+docker-compose up -d
+
+# Ou directement avec Docker
+docker run -d \
+  --name simpledns \
+  -p 53:53/udp \
+  -p 8080:8080 \
+  -v $(pwd)/zones:/etc/simpledns/zones \
+  -v $(pwd)/simpledns.db:/etc/simpledns/simpledns.db \
+  ghcr.io/zaap59/simpledns:latest
+```
+
+### Configuration de l'IP du serveur
+
+Par défaut, l'interface web détecte automatiquement l'IP du serveur. Cependant, dans un environnement Docker, vous pouvez forcer une IP spécifique en utilisant la variable d'environnement `SERVER_IP` :
+
+```bash
+docker run -d \
+  --name simpledns \
+  -p 53:53/udp \
+  -p 8080:8080 \
+  -e SERVER_IP=192.168.1.100 \
+  -v $(pwd)/zones:/etc/simpledns/zones \
+  -v $(pwd)/simpledns.db:/etc/simpledns/simpledns.db \
+  ghcr.io/zaap59/simpledns:latest
+```
+
+Cela est particulièrement utile quand :
+- Le conteneur est derrière un reverse proxy
+- L'auto-détection ne fonctionne pas correctement
+- Vous voulez forcer une IP spécifique dans l'interface web
+
+### Variables d'environnement
+
+- `SERVER_IP`: IP du serveur affichée dans l'interface web (optionnel, auto-détecté sinon)
+
+### Volumes
+
+- `/etc/simpledns/zones`: Répertoire contenant les fichiers de zone YAML
+- `/etc/simpledns/simpledns.db`: Base de données SQLite (optionnel, créé automatiquement)
+
+### Ports
+
+- `53`: Port DNS tcp
+- `53/udp`: Port DNS udp
+- `8080/tcp`: Interface web d'administration
+
+```bash**Format de configuration des zones:**
 - Dossier `conf/`: fichiers de zone au format YAML (exemples fournis: `conf/homelab.int.yaml`, `conf/lilcloud.net.yaml`).
 - Consultez [YAML_FORMAT.md](YAML_FORMAT.md) pour la documentation détaillée du format YAML.
 

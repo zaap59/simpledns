@@ -620,15 +620,19 @@ func handleConfigModalJS(c *gin.Context) {
 
 // handleAPIServerInfo returns server information including IP address
 func handleAPIServerInfo(c *gin.Context) {
-	// Try to get the server's IP from the request
-	serverIP := c.Request.Host
-	// Remove port if present
-	if idx := strings.LastIndex(serverIP, ":"); idx != -1 {
-		serverIP = serverIP[:idx]
-	}
-	// If it's localhost, try to get a better IP
-	if serverIP == "localhost" || serverIP == "127.0.0.1" {
-		serverIP = getOutboundIP()
+	// Check if SERVER_IP environment variable is set
+	serverIP := os.Getenv("SERVER_IP")
+	if serverIP == "" {
+		// Fallback to auto-detection
+		serverIP = c.Request.Host
+		// Remove port if present
+		if idx := strings.LastIndex(serverIP, ":"); idx != -1 {
+			serverIP = serverIP[:idx]
+		}
+		// If it's localhost, try to get a better IP
+		if serverIP == "localhost" || serverIP == "127.0.0.1" {
+			serverIP = getOutboundIP()
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"ip": serverIP,
